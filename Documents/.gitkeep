@@ -1,0 +1,7 @@
+# This file ensures the Documents directory is preserved in git
+# 
+# PDF files in this directory are ignored by .gitignore but the
+# directory structure itself is maintained for all users who clone
+# the repository.
+#
+# Place your PDF files in this directory for processing.

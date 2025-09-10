@@ -1,0 +1,45 @@
+# AI-Enhanced PDF Extraction System Requirements
+# Mit Hardware-Beschleunigung für M1 Pro & RTX GPUs
+
+# Core PDF Processing
+PyMuPDF==1.23.26
+watchdog==4.0.1
+pillow==10.4.0
+
+# AI & Machine Learning (Hardware-Optimiert)
+sentence-transformers==2.7.0
+torch>=2.0.0  # Hardware acceleration support
+torchvision>=0.15.0
+numpy>=1.24.0
+
+# Database & Cloud Storage  
+supabase==2.4.4
+boto3==1.34.34
+
+# HTTP & Networking
+requests==2.31.0
+
+# Hardware Detection & Optimization
+psutil>=5.9.0
+
+# Optional GPU Acceleration Dependencies:
+# 
+# Für Apple Silicon (automatisch in torch enthalten):
+# Metal Performance Shaders aktiviert automatisch
+#
+# Für NVIDIA RTX GPUs (falls gewünscht):
+# Uncomment next line und install: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# torch-cuda
+#
+# Für OpenCL (experimentell):
+# pyopencl>=2023.1
+numpy==1.26.4
+requests==2.31.0
+
+# Database & Storage
+supabase==2.8.0
+psycopg2-binary==2.9.9
+boto3==1.34.162
+
+# Utilities
+python-dotenv==1.0.1

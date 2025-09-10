@@ -1,0 +1,52 @@
+{
+  "_COMMENT": "===============================================",
+  "_TITLE": "AI-Enhanced PDF Extractor - Cross-Platform Config",
+  "_USAGE": "cp config.example.json config.json && python3 performance_optimizer.py",
+  "_COMMENT2": "===============================================",
+  
+  "_AI_MODELS": "Standardisierte AI Modelle - für alle PCs gleich",
+  "vision_model": "llava:7b",
+  "text_model": "llama3.1:8b",
+  "use_vision_analysis": true,
+  "use_semantic_boundaries": true,
+  "chunking_strategy": "intelligent",
+  "max_chunk_size": 600,
+  "min_chunk_size": 200,
+  "embedding_model": "all-MiniLM-L6-v2",
+  "ollama_base_url": "http://localhost:11434",
+  
+  "_DATABASE_CONFIG": "Diese Werte sind für ALLE PCs identisch - NIEMALS ändern!",
+  "supabase_url": "https://xvqsvrxyjjunbsdudfly.supabase.co",
+  "supabase_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2cXN2cnh5amp1bmJzZHVkZmx5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzQ1MTU0OSwiZXhwIjoyMDczMDI3NTQ5fQ.8d_iNbyxkmECM2cTMkabr1KUpAvRiKJ77OFVuAp4fBo",
+  
+  "_R2_STORAGE_CONFIG": "Diese Werte sind für ALLE PCs identisch - NIEMALS ändern!",
+  "r2_account_id": "a88f92c913c232559845adb9001a5d14",
+  "r2_access_key_id": "6503ce244c0d5a495b48fe093900ce65",
+  "r2_secret_access_key": "d0da598013ace944c767c8f679d267ac02022ba2bcf297bdb4ff7248562e7816",
+  "r2_bucket_name": "kr-technik-agent",
+  "r2_public_domain_id": "80a63376fddf4b909ed55ee53a401a93",
+  
+  "_PLATFORM_SPECIFIC": "Diese Werte je nach PC anpassen",
+  "documents_path": "./Documents",
+  "batch_size": 50,
+  "parallel_processing": true,
+  "optimize_for_hardware": true,
+  
+  "_HARDWARE_AUTO_DETECTED": "Wird automatisch optimiert durch performance_optimizer.py",
+  "use_metal_acceleration": false,
+  "use_cuda_acceleration": false,
+  "use_neural_engine": false,
+  "parallel_workers": 4,
+  "memory_optimization": "balanced",
+  "ollama_gpu_layers": 0,
+  "ollama_num_thread": 4,
+  "gpu_memory_fraction": 0.7,
+  
+  "_SETUP_GUIDE": {
+    "step_1": "cp config.example.json config.json",
+    "step_2": "Ändere documents_path zu deinem PDF-Ordner",
+    "step_3": "python3 performance_optimizer.py",
+    "step_4": "python3 ai_pdf_processor.py",
+    "wichtig": "Supabase + R2 Config NIEMALS ändern!"
+  }
+}

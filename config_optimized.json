@@ -1,0 +1,36 @@
+{
+  "vision_model": "llava:7b",
+  "text_model": "llama3.1:8b",
+  "chunking_strategy": "intelligent",
+  "use_vision_analysis": true,
+  "use_semantic_boundaries": true,
+  "max_chunk_size": 600,
+  "min_chunk_size": 200,
+  "supabase_url": "https://xvqsvrxyjjunbsdudfly.supabase.co",
+  "supabase_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2cXN2cnh5amp1bmJzZHVkZmx5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzQ1MTU0OSwiZXhwIjoyMDczMDI3NTQ5fQ.8d_iNbyxkmECM2cTMkabr1KUpAvRiKJ77OFVuAp4fBo",
+  "r2_account_id": "a88f92c913c232559845adb9001a5d14",
+  "r2_access_key_id": "6503ce244c0d5a495b48fe093900ce65",
+  "r2_secret_access_key": "d0da598013ace944c767c8f679d267ac02022ba2bcf297bdb4ff7248562e7816",
+  "r2_bucket_name": "kr-technik-agent",
+  "documents_path": "/Users/tobiashaas/Docker/PDF-Extractor/Documents",
+  "batch_size": 150,
+  "parallel_processing": true,
+  "optimize_for_hardware": true,
+  "embedding_model": "all-MiniLM-L6-v2",
+  "use_metal_acceleration": true,
+  "parallel_workers": 8,
+  "memory_optimization": "unified_memory",
+  "recommended_settings": {
+    "description": "Optimiert f\u00fcr Apple Silicon M1 Pro",
+    "performance_boost": "30-50% durch Metal + Neural Engine",
+    "features": [
+      "Metal Performance Shaders",
+      "Neural Engine",
+      "Unified Memory"
+    ]
+  },
+  "ollama_gpu_layers": -1,
+  "ollama_num_thread": 10,
+  "use_metal": true,
+  "use_neural_engine": true
+}

@@ -1,0 +1,94 @@
+# AI-Enhanced PDF Extraction System
+# .gitignore - Excludes sensitive and generated files
+
+# Configuration and secrets
+config.json
+*.env
+.env*
+
+# Logs and temporary files
+logs/
+*.log
+*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker
+.dockerignore
+
+# Ollama models (large files)
+.ollama/
+
+# Processed files cache
+.cache/
+cache/
+
+# Document files (contain actual PDFs - too large for git)
+Documents/*.pdf
+Documents/**/*.pdf
+*.pdf
+
+# Test files
+test_*.pdf
+sample_*.pdf
+*_test.pdf
+
+# Backup files
+*.bak
+*.backup
+
+# Downloaded test images
+test_image_download.png
+
+# AI model downloads (optional - could be large)
+models/
+*.bin
+*.safetensors
