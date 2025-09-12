@@ -52,8 +52,10 @@ PDF Document → AI Vision Analysis → Smart Chunking → Embedding Generation 
    ```
 
 4. **Configure your services:**
-   - Copy `config.example.json` to `config.json`
-   - Add your PostgreSQL database and Cloudflare R2 credentials
+   - **Option A**: Use `config.template.json` for new generic setups
+   - **Option B**: Use `config.example.json` for Supabase/R2 setups
+   - Copy your chosen template to `config.json`
+   - Add your PostgreSQL database and cloud storage credentials
 
 ### Usage
 
