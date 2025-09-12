@@ -104,6 +104,7 @@ class UniversalLauncher:
         print("🔍 DEPENDENCY CHECK")
         print("=" * 30)
         
+        # Check core dependencies first
         dependencies = {
             'Ollama': self.check_ollama,
             'Config': self.check_config,
@@ -118,6 +119,21 @@ class UniversalLauncher:
                 else:
                     print(f"❌ {name}: Missing")
                     all_ok = False
+            except Exception as e:
+                print(f"❌ {name}: Error - {e}")
+                all_ok = False
+        
+        # Only check models if Ollama is running
+        if self.check_ollama():
+            try:
+                if self.check_ollama_models():
+                    print(f"✅ Ollama Models: OK")
+                else:
+                    print(f"❌ Ollama Models: Missing")
+                    all_ok = False
+            except Exception as e:
+                print(f"❌ Ollama Models: Error - {e}")
+                all_ok = False
             except Exception as e:
                 print(f"⚠️  {name}: Error - {e}")
                 all_ok = False
@@ -136,6 +152,53 @@ class UniversalLauncher:
         except:
             pass
         return False
+    
+    def check_ollama_models(self):
+        """Check and install required Ollama models"""
+        # Skip model check if Ollama is not running
+        if not self.check_ollama():
+            return False
+            
+        required_models = ['embeddinggemma']
+        
+        try:
+            import requests
+            # Check existing models
+            response = requests.get("http://localhost:11434/api/tags", timeout=10)
+            if response.status_code == 200:
+                existing_models = [model['name'].split(':')[0] for model in response.json().get('models', [])]
+                print(f"   📋 Installed models: {existing_models}")
+                
+                # Install missing models
+                for model in required_models:
+                    if model not in existing_models:
+                        print(f"   ⬇️  Installing {model}...")
+                        self.install_ollama_model(model)
+                    else:
+                        print(f"   ✅ {model} already installed")
+                return True
+        except Exception as e:
+            print(f"   ❌ Failed to check models: {e}")
+            return False
+    
+    def install_ollama_model(self, model_name):
+        """Install a specific Ollama model"""
+        try:
+            print(f"   🔄 Pulling {model_name} (this may take a few minutes)...")
+            result = subprocess.run(['ollama', 'pull', model_name], 
+                                  capture_output=True, text=True, timeout=300)
+            if result.returncode == 0:
+                print(f"   ✅ {model_name} installed successfully")
+                return True
+            else:
+                print(f"   ❌ Failed to install {model_name}: {result.stderr}")
+                return False
+        except subprocess.TimeoutExpired:
+            print(f"   ⏰ Timeout installing {model_name}")
+            return False
+        except Exception as e:
+            print(f"   ❌ Error installing {model_name}: {e}")
+            return False
     
     def check_config(self):
         """Check if config.json exists"""
@@ -166,6 +229,9 @@ class UniversalLauncher:
                 print("   Windows: Download from https://ollama.ai/download")
             else:
                 print("   macOS/Linux: curl -fsSL https://ollama.ai/install.sh | sh")
+        elif not self.check_ollama_models():
+            print("⚠️  Required Ollama models missing")
+            print("💡 Models will be installed automatically when needed")
         
         if not self.check_python_packages():
             print("⚠️  Python packages missing")

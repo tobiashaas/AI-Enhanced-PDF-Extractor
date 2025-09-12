@@ -2404,6 +2404,8 @@ def load_config() -> AIProcessingConfig:
             documents_path=config_data['documents_path'],
             vision_model=config_data.get('vision_model', 'llava:7b'),
             text_model=config_data.get('text_model', 'llama3.1:8b'),
+            embedding_model=config_data.get('embedding_model', 'embeddinggemma'),
+            embedding_provider=config_data.get('embedding_provider', 'ollama'),
             use_vision_analysis=config_data.get('use_vision_analysis', True),
             use_semantic_boundaries=config_data.get('use_semantic_boundaries', True),
             chunking_strategy=config_data.get('chunking_strategy', 'intelligent'),

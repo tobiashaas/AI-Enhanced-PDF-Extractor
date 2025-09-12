@@ -44,11 +44,30 @@ class AISystemMonitor:
                 
                 print(f"📊 Installierte Models: {len(models)}")
                 
-                required_models = ["llama3.1:8b", "llava:13b"]
+                # Check required models (updated to match actual system requirements)
+                required_models = ["embeddinggemma"]  # Primary embedding model
+                optional_models = ["llama3.1", "llava"]  # Optional for advanced features
+                
+                # Show required models first
                 for req_model in required_models:
                     found = any(req_model in model['name'] for model in models)
                     status = "✅" if found else "❌"
-                    print(f"   {status} {req_model}")
+                    print(f"   {status} {req_model} (required)")
+                
+                # Show optional models
+                for opt_model in optional_models:
+                    found = any(opt_model in model['name'] for model in models)
+                    if found:
+                        # Find the exact model name
+                        exact_name = next((model['name'] for model in models if opt_model in model['name']), opt_model)
+                        print(f"   ✅ {exact_name} (optional)")
+                
+                # Show all models for debugging
+                print(f"\n📋 Alle Models:")
+                for model in models[:10]:  # Limit to first 10
+                    print(f"   • {model['name']}")
+                if len(models) > 10:
+                    print(f"   ... und {len(models) - 10} weitere")
                 
             else:
                 print("❌ Ollama Service: OFFLINE")
