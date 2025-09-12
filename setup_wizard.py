@@ -34,6 +34,68 @@ class AISetupWizard:
         print("=" * 70)
         print()
         
+    def select_providers(self):
+        """Provider-Auswahl für Database und Storage"""
+        print("🔧 PROVIDER AUSWAHL")
+        print("=" * 50)
+        print()
+        
+        # Database Provider Selection
+        print("📊 DATENBANK PROVIDER")
+        print("-" * 30)
+        print("1. Supabase (empfohlen für Einsteiger)")
+        print("2. AWS RDS PostgreSQL")
+        print("3. Google Cloud SQL")
+        print("4. Azure Database for PostgreSQL")
+        print("5. Self-hosted PostgreSQL")
+        print()
+        
+        while True:
+            db_choice = input("Datenbank Provider wählen (1-5): ").strip()
+            if db_choice in ['1', '2', '3', '4', '5']:
+                break
+            print("❌ Bitte 1-5 wählen")
+        
+        database_providers = {
+            '1': 'supabase',
+            '2': 'aws_rds', 
+            '3': 'google_cloud_sql',
+            '4': 'azure_postgresql',
+            '5': 'self_hosted'
+        }
+        database_provider = database_providers[db_choice]
+        
+        print()
+        print("☁️ CLOUD STORAGE PROVIDER")
+        print("-" * 30)
+        print("1. Cloudflare R2 (empfohlen)")
+        print("2. AWS S3")
+        print("3. Google Cloud Storage")
+        print("4. Azure Blob Storage")
+        print("5. MinIO / Self-hosted S3")
+        print()
+        
+        while True:
+            storage_choice = input("Storage Provider wählen (1-5): ").strip()
+            if storage_choice in ['1', '2', '3', '4', '5']:
+                break
+            print("❌ Bitte 1-5 wählen")
+        
+        storage_providers = {
+            '1': 'cloudflare_r2',
+            '2': 'aws_s3',
+            '3': 'google_cloud_storage', 
+            '4': 'azure_blob',
+            '5': 'minio_s3'
+        }
+        storage_provider = storage_providers[storage_choice]
+        
+        print()
+        print(f"✅ Gewählt: {database_provider} + {storage_provider}")
+        print()
+        
+        return database_provider, storage_provider
+        
     def detect_hardware(self):
         """Detaillierte Hardware-Erkennung"""
         print("🔧 HARDWARE-ANALYSE")
@@ -612,6 +674,86 @@ class AISetupWizard:
         
         print()
     
+    def collect_database_config(self, provider):
+        """Provider-spezifische Database-Konfiguration"""
+        if provider == 'supabase':
+            self.collect_supabase_config()
+        else:
+            self.collect_generic_database_config(provider)
+    
+    def collect_storage_config(self, provider):
+        """Provider-spezifische Storage-Konfiguration"""
+        if provider == 'cloudflare_r2':
+            self.collect_r2_config()
+        else:
+            self.collect_generic_storage_config(provider)
+    
+    def collect_generic_database_config(self, provider):
+        """Universelle Database-Konfiguration für nicht-Supabase Provider"""
+        provider_names = {
+            'aws_rds': 'AWS RDS PostgreSQL',
+            'google_cloud_sql': 'Google Cloud SQL',
+            'azure_postgresql': 'Azure Database for PostgreSQL',
+            'self_hosted': 'Self-hosted PostgreSQL'
+        }
+        
+        print(f"🗄️  {provider_names[provider]} KONFIGURATION")
+        print("-" * 50)
+        print("PostgreSQL Datenbank mit pgvector Extension benötigt:")
+        print("   • Database URL (mit Credentials)")
+        print("   • pgvector Extension muss aktiviert sein")
+        print("   • Service Role oder Admin-Berechtigung")
+        print()
+        
+        database_url = input("Database URL (postgres://user:pass@host:port/dbname): ").strip()
+        while not database_url.startswith('postgres://'):
+            print("⚠️  URL muss mit 'postgres://' beginnen")
+            database_url = input("Database URL: ").strip()
+        
+        database_key = getpass.getpass("Service Role Key (optional, Enter wenn in URL): ").strip()
+        
+        # Mapping für Backward-Kompatibilität
+        self.config['supabase_url'] = database_url
+        self.config['supabase_key'] = database_key or "not_required"
+        
+        print(f"✅ {provider_names[provider]} konfiguriert")
+        print()
+    
+    def collect_generic_storage_config(self, provider):
+        """Universelle S3-kompatible Storage-Konfiguration"""
+        provider_names = {
+            'aws_s3': 'AWS S3',
+            'google_cloud_storage': 'Google Cloud Storage',
+            'azure_blob': 'Azure Blob Storage',
+            'minio_s3': 'MinIO S3'
+        }
+        
+        print(f"☁️  {provider_names[provider]} KONFIGURATION")
+        print("-" * 50)
+        print("S3-kompatible Storage für PDF-Bilder:")
+        print("   • Access Key & Secret Key")
+        print("   • Bucket Name")
+        print("   • Optional: Custom Endpoint")
+        print()
+        
+        storage_endpoint = ""
+        if provider in ['azure_blob', 'minio_s3']:
+            storage_endpoint = input("Storage Endpoint URL (z.B. https://account.blob.core.windows.net): ").strip()
+        
+        access_key = input("Access Key ID: ").strip()
+        secret_key = getpass.getpass("Secret Access Key: ").strip()
+        bucket_name = input("Bucket Name: ").strip()
+        
+        # Mapping für Backward-Kompatibilität mit R2-Feldern
+        self.config['r2_account_id'] = storage_endpoint or f"{provider}_account"
+        self.config['r2_access_key_id'] = access_key
+        self.config['r2_secret_access_key'] = secret_key
+        self.config['r2_bucket_name'] = bucket_name
+        self.config['r2_public_domain_id'] = storage_endpoint or f"{provider}_domain"
+        
+        print(f"✅ {provider_names[provider]} konfiguriert")
+        print()
+    
     def collect_processing_config(self):
         print("📁 PROCESSING KONFIGURATION")
         print("-" * 30)
@@ -786,6 +928,9 @@ class AISetupWizard:
     def run_setup(self):
         self.welcome_message()
         
+        # 0. Provider-Auswahl (NEU!)
+        database_provider, storage_provider = self.select_providers()
+        
         # 1. Hardware-Analyse
         self.detect_hardware()
         
@@ -811,9 +956,9 @@ class AISetupWizard:
         # 6. AI Configuration aus Hardware-Analyse übernehmen
         self.config.update(ai_config)
         
-        # 7. Cloud Services (Optional)
-        self.collect_supabase_config()
-        self.collect_r2_config() 
+        # 7. Provider-spezifische Cloud Services Configuration
+        self.collect_database_config(database_provider)
+        self.collect_storage_config(storage_provider)
         self.collect_processing_config()
         
         # 8. Test dependencies
