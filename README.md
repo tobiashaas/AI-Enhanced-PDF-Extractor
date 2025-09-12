@@ -42,10 +42,11 @@ PDF Document → AI Vision Analysis → Smart Chunking → Embedding Generation 
    pip install -r requirements.txt
    ```
 
-3. **Run setup wizard:**
-   - **Windows:** `setup_wizard.bat`
-   - **macOS/Linux:** `./setup_wizard.sh`
-   - **Universal:** `python run.py setup_wizard.py`
+3. **Quick start:**
+   ```bash
+   python launch.py setup    # Interactive setup
+   python launch.py process "your-document.pdf"
+   ```
 
 4. **Configure your services:**
    - Copy `config.example.json` to `config.json`
@@ -53,53 +54,52 @@ PDF Document → AI Vision Analysis → Smart Chunking → Embedding Generation 
 
 ### Usage
 
-#### Windows Users
-```cmd
-REM Process a PDF document
-ai_pdf_processor.bat "path/to/document.pdf"
+#### Universal Launcher (All Platforms)
+The easiest way to use the system on any platform:
 
-REM Check system status
-status.bat
-
-REM Search processed documents
-smart_search_engine.bat
-```
-
-#### macOS/Linux Users  
 ```bash
 # Process a PDF document
-./ai_pdf_processor.sh "path/to/document.pdf"
+python launch.py process "path/to/document.pdf"
 
-# Check system status
-./status.sh
+# Check system status  
+python launch.py status
 
 # Search processed documents
-./smart_search_engine.sh
+python launch.py search
+
+# Run setup wizard
+python launch.py setup
 ```
 
-#### Universal Launcher
+#### Direct Python Execution
 ```bash
-# Works on any platform
-python run.py ai_pdf_processor.py "path/to/document.pdf"
-python run.py status.py
-python run.py smart_search_engine.py
+# Alternative: Direct execution
+python ai_pdf_processor.py "path/to/document.pdf"
+python status.py
+python smart_search_engine.py
 ```
+
+The universal launcher automatically:
+- ✅ **Detects your OS** (Windows/macOS/Linux)
+- ✅ **Finds Python** (`python` vs `python3`)
+- ✅ **Detects hardware** (Apple Silicon/NVIDIA/CPU)
+- ✅ **Optimizes settings** (workers, batch size, GPU acceleration)
+- ✅ **Checks dependencies** (Ollama, config, packages)
 
 ## 📁 Project Structure
 
 ```
 AI-Enhanced-PDF-Extractor/
-├── ai_pdf_processor.py      # Main processing system
-├── smart_search_engine.py   # Document search & query
-├── status.py               # System monitoring
-├── setup_wizard.py         # Interactive setup
+├── launch.py               # 🌍 Universal launcher (auto-detects OS/hardware)
+├── run                     # 🚀 Bootstrap script (finds Python automatically)
+├── ai_pdf_processor.py     # Main processing system
+├── smart_search_engine.py  # Document search & query
+├── status.py              # System monitoring
+├── setup_wizard.py        # Interactive setup
 ├── cross_platform_setup.py # Automated setup
-├── requirements.txt        # Python dependencies
-├── config.example.json     # Configuration template
-├── *.bat                   # Windows launchers
-├── *.sh                    # macOS/Linux launchers
-├── run.py                  # Universal launcher
-└── Documents/              # Place your PDFs here
+├── requirements.txt       # Python dependencies
+├── config.example.json    # Configuration template
+└── Documents/             # Place your PDFs here
 ```
 
 ## 🔧 Configuration
