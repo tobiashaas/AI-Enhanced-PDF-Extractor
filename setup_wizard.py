@@ -394,20 +394,6 @@ class AISetupWizard:
         if models_to_download:
             return self.download_models(models_to_download)
         return True
-            if ("llava" in installed or "bakllava" in installed) and not vision_model_found:
-                self.config['vision_model'] = installed
-                vision_model_found = True
-            elif "llama3.1" in installed and not text_model_found:
-                self.config['text_model'] = installed
-                text_model_found = True
-        
-        # Set defaults if not found
-        if not vision_model_found:
-            self.config['vision_model'] = "llava:7b"  # Aktualisierter Default
-        if not text_model_found:
-            self.config['text_model'] = "llama3.1:8b"
-                
-        return True
     
     def download_models(self, models):
         print("📥 MODELLE HERUNTERLADEN...")
