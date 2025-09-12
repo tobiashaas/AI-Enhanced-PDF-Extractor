@@ -1,0 +1,15 @@
+{
+  "manufacturer": "Konica_Minolta",
+  "model": "C3350i",
+  "pdf_path": "Documents/Parts_Catalogs/Konica_Minolta/C3350i/C3350i_Parts.pdf",
+  "csv_path": "Documents/Parts_Catalogs/Konica_Minolta/C3350i/C3350i_Parts.csv",
+  "pdf_hash": "a8c39728e56acf661aca672678deb069d8fc48e0e0bd6d42522f074aab825628",
+  "csv_hash": "9cf27d574a53fdb7b68e3c306fc9e49dbcdf05978b08632568d9101ff20c1be3",
+  "last_processed": "2025-09-12T12:57:12.468148",
+  "processing_status": "completed",
+  "parts_count": {
+    "csv": 1400,
+    "pdf_extracted": 1390,
+    "match_rate": 99.3
+  }
+}

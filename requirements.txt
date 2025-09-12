@@ -1,0 +1,30 @@
+# AI-Enhanced PDF Extraction System Requirements
+# Optimiert für Hardware-Beschleunigung (Apple Silicon, NVIDIA, CPU)
+
+# Core PDF Processing
+PyMuPDF==1.23.26
+Pillow==10.4.0
+watchdog==4.0.1
+
+# AI & Machine Learning (Hardware-optimiert)
+sentence-transformers==2.7.0
+torch>=2.0.0
+torchvision>=0.15.0
+numpy==1.26.4
+
+# Database & Cloud Storage  
+supabase==2.8.0
+psycopg2-binary==2.9.9
+boto3==1.34.162
+
+# HTTP & Networking
+requests==2.31.0
+
+# System Utilities
+psutil>=5.9.0
+python-dotenv==1.0.1
+
+# Hardware Acceleration Notes:
+# - Apple Silicon: Metal Performance Shaders (automatisch aktiviert)
+# - NVIDIA GPUs: Install mit --index-url https://download.pytorch.org/whl/cu118
+# - Intel/AMD: Optimierte CPU-Bibliotheken (automatisch)

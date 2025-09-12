@@ -1,0 +1,15 @@
+{
+  "manufacturer": "Konica_Minolta",
+  "model": "C451i",
+  "pdf_path": "Documents/Parts_Catalogs/Konica_Minolta/C451i/C451i_Parts.pdf",
+  "csv_path": "Documents/Parts_Catalogs/Konica_Minolta/C451i/C451i_Parts.csv",
+  "pdf_hash": "8947f982b9d63b91ba3a5f6ca97bb1aa35ea15369b216e4caf902bb91ee5ee79",
+  "csv_hash": "74a8687e612544531e80579ca09057ca33f13ab02164a6e8cfb93a99aa001f93",
+  "last_processed": "2025-09-12T12:30:14.067128",
+  "processing_status": "completed",
+  "parts_count": {
+    "csv": 1400,
+    "pdf_extracted": 1390,
+    "match_rate": 99.3
+  }
+}

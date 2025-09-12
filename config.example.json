@@ -1,0 +1,54 @@
+{
+  "_COMMENT": "===============================================",
+  "_TITLE": "AI-Enhanced PDF Extractor - Cross-Platform Config",
+  "_USAGE": "Template für Supabase + Cloudflare R2 Setups - Verwende 'python launch.py setup' für geführte Konfiguration",
+  "_COMMENT2": "===============================================",
+  
+  "_AI_MODELS": "Standardisierte AI Modelle - für alle PCs gleich",
+  "vision_model": "llava:7b",
+  "text_model": "llama3.1:8b",
+  "embedding_model": "embeddinggemma",
+  "embedding_provider": "ollama",
+  "use_vision_analysis": true,
+  "use_semantic_boundaries": true,
+  "chunking_strategy": "intelligent",
+  "max_chunk_size": 600,
+  "min_chunk_size": 200,
+  "ollama_base_url": "http://localhost:11434",
+  
+  "_DATABASE_CONFIG": "Supabase PostgreSQL Database mit pgvector - Ersetze mit deinen Supabase Credentials",
+  "supabase_url": "https://your-project-ref.supabase.co",
+  "supabase_key": "your_supabase_service_role_key_here",
+  
+  "_STORAGE_CONFIG": "Cloudflare R2 Cloud Storage für Bilder - Ersetze mit deinen R2 Credentials",
+  "r2_account_id": "your_r2_account_id",
+  "r2_access_key_id": "your_r2_access_key_id",
+  "r2_secret_access_key": "your_r2_secret_access_key",
+  "r2_bucket_name": "your-r2-bucket-name",
+  "r2_public_domain_id": "your_r2_public_domain_id",
+  
+  "_PLATFORM_SPECIFIC": "Diese Werte je nach PC anpassen",
+  "documents_path": "./Documents",
+  "batch_size": 50,
+  "parallel_processing": true,
+  "optimize_for_hardware": true,
+  
+  "_HARDWARE_AUTO_DETECTED": "Wird automatisch optimiert durch performance_optimizer.py",
+  "use_metal_acceleration": false,
+  "use_cuda_acceleration": false,
+  "use_neural_engine": false,
+  "parallel_workers": 4,
+  "memory_optimization": "balanced",
+  "ollama_gpu_layers": 0,
+  "ollama_num_thread": 4,
+  "gpu_memory_fraction": 0.7,
+  
+  "_SETUP_GUIDE": {
+    "step_1": "Empfohlen: 'python launch.py setup' für geführte Konfiguration",
+    "step_2": "Alternativ: cp config.example.json config.json",
+    "step_3": "Trage deine Supabase URL + Key und R2 Credentials ein",
+    "step_4": "Ändere documents_path zu deinem PDF-Ordner",
+    "step_5": "python launch.py process 'your-file.pdf'",
+    "wichtig": "Echte Credentials eintragen - diese sind nur Platzhalter!"
+  }
+}

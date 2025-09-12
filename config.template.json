@@ -1,0 +1,64 @@
+{
+  "_COMMENT": "===============================================",
+  "_TITLE": "AI-Enhanced PDF Extractor - Universal Template",
+  "_USAGE": "cp config.template.json config.json && anpassen der Werte",
+  "_COMMENT2": "===============================================",
+  
+  "_AI_MODELS": "AI Modelle - für lokale Ollama Installation",
+  "vision_model": "llava:7b",
+  "text_model": "llama3.1:8b",
+  "embedding_model": "embeddinggemma",
+  "embedding_provider": "ollama",
+  "use_vision_analysis": true,
+  "use_semantic_boundaries": true,
+  "chunking_strategy": "intelligent",
+  "max_chunk_size": 600,
+  "min_chunk_size": 200,
+  "ollama_base_url": "http://localhost:11434",
+  
+  "_DATABASE_CONFIG": "PostgreSQL Datenbank mit pgvector - anpassen für Ihren Provider",
+  "database_url": "https://your-database-host.com",
+  "database_key": "your_database_service_role_key_here",
+  
+  "_LEGACY_SUPABASE": "Alternativ: Falls Sie Supabase verwenden",
+  "supabase_url": "https://your-supabase-project.supabase.co", 
+  "supabase_key": "your_supabase_service_role_key_here",
+  
+  "_STORAGE_CONFIG": "S3-kompatible Cloud Storage für Bilder",
+  "storage_account_id": "your_cloud_storage_account_id",
+  "storage_access_key_id": "your_storage_access_key",
+  "storage_secret_access_key": "your_storage_secret_key",
+  "storage_bucket_name": "your-bucket-name", 
+  "storage_public_domain_id": "your_public_domain_id",
+  
+  "_LEGACY_R2": "Alternativ: Falls Sie Cloudflare R2 verwenden",
+  "r2_account_id": "your_r2_account_id",
+  "r2_access_key_id": "your_r2_access_key",
+  "r2_secret_access_key": "your_r2_secret_key", 
+  "r2_bucket_name": "your-r2-bucket-name",
+  "r2_public_domain_id": "your_r2_public_domain_id",
+  
+  "_PLATFORM_SPECIFIC": "Diese Werte je nach System anpassen",
+  "documents_path": "./Documents",
+  "batch_size": 50,
+  "parallel_processing": true,
+  "optimize_for_hardware": true,
+  
+  "_HARDWARE_AUTO_DETECTED": "Wird automatisch optimiert durch launch.py",
+  "use_metal_acceleration": false,
+  "use_cuda_acceleration": false,
+  "use_neural_engine": false,
+  "parallel_workers": 4,
+  "memory_optimization": "balanced",
+  "ollama_gpu_layers": 0,
+  "ollama_num_thread": 4,
+  "gpu_memory_fraction": 0.7,
+  
+  "_SETUP_GUIDE": {
+    "step_1": "cp config.template.json config.json",
+    "step_2": "Anpassen der database_url/supabase_url und storage/r2-Konfiguration",
+    "step_3": "Ändere documents_path zu deinem PDF-Ordner", 
+    "step_4": "python3 launch.py",
+    "wichtig": "Entweder database_url ODER supabase_url verwenden - nicht beide!"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "manufacturer": "Konica_Minolta",
+  "model": "C361i",
+  "pdf_path": "Documents/Parts_Catalogs/Konica_Minolta/C361i/C361i_Parts.pdf",
+  "csv_path": "Documents/Parts_Catalogs/Konica_Minolta/C361i/C361i_Parts.csv",
+  "pdf_hash": "643c30367fb38d23908882f36482999a2f7aba870fdd235c86eaab01d9065475",
+  "csv_hash": "b5f9e64a9ac0df004a12a9990862b511890fcd910c1acfaeac21d44ea4608e1f",
+  "last_processed": "2025-09-12T12:59:38.015694",
+  "processing_status": "completed",
+  "parts_count": {
+    "csv": 1400,
+    "pdf_extracted": 1390,
+    "match_rate": 99.3
+  }
+}

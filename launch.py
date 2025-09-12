@@ -1,0 +1,414 @@
+#!/usr/bin/env python3
+"""
+Universal AI PDF Processor Launcher
+===================================
+Cross-platform auto-detection and optimal configuration launcher
+Detects OS, Hardware, Python version and launches with best settings
+"""
+
+import os
+import sys
+import platform
+import subprocess
+import json
+from pathlib import Path
+
+class UniversalLauncher:
+    def __init__(self):
+        self.os_type = platform.system().lower()
+        self.architecture = platform.machine().lower()
+        self.python_cmd = self.detect_python()
+        self.hardware_info = self.detect_hardware()
+        
+    def detect_python(self):
+        """Detect best Python command for this platform"""
+        commands = []
+        
+        if self.os_type == 'windows':
+            commands = ['python', 'py', 'python3']
+        else:
+            commands = ['python3', 'python']
+        
+        for cmd in commands:
+            try:
+                result = subprocess.run([cmd, '--version'], 
+                                      capture_output=True, text=True, timeout=5)
+                if result.returncode == 0 and 'Python 3' in result.stdout:
+                    version = result.stdout.strip().split()[1]
+                    print(f"✅ Found Python {version} via '{cmd}'")
+                    return cmd
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                continue
+        
+        print("❌ No suitable Python 3.x found!")
+        return None
+    
+    def detect_hardware(self):
+        """Detect hardware capabilities"""
+        info = {
+            'cpu_count': os.cpu_count() or 4,
+            'has_gpu': False,
+            'gpu_type': None,
+            'has_metal': False,
+            'has_cuda': False,
+            'recommended_workers': 4,
+            'recommended_batch_size': 100
+        }
+        
+        # macOS Metal detection
+        if self.os_type == 'darwin':
+            if 'arm64' in self.architecture or 'm1' in self.architecture.lower() or 'm2' in self.architecture.lower():
+                info['has_metal'] = True
+                info['has_gpu'] = True
+                info['gpu_type'] = 'Apple Silicon'
+                info['recommended_workers'] = 6
+                info['recommended_batch_size'] = 150
+                
+        # Windows/Linux NVIDIA detection
+        try:
+            result = subprocess.run(['nvidia-smi'], capture_output=True, timeout=3)
+            if result.returncode == 0:
+                info['has_cuda'] = True
+                info['has_gpu'] = True
+                info['gpu_type'] = 'NVIDIA CUDA'
+                info['recommended_workers'] = 8
+                info['recommended_batch_size'] = 200
+        except:
+            pass
+        
+        # Adjust for CPU count
+        info['recommended_workers'] = min(info['recommended_workers'], info['cpu_count'])
+        
+        return info
+    
+    def print_system_info(self):
+        """Display detected system information"""
+        print("🖥️  SYSTEM DETECTION")
+        print("=" * 50)
+        print(f"OS: {platform.system()} {platform.release()}")
+        print(f"Architecture: {platform.machine()}")
+        print(f"CPU Cores: {self.hardware_info['cpu_count']}")
+        print(f"Python: {self.python_cmd}")
+        
+        if self.hardware_info['has_gpu']:
+            print(f"GPU: ✅ {self.hardware_info['gpu_type']}")
+        else:
+            print(f"GPU: ❌ CPU only")
+            
+        print(f"Recommended Workers: {self.hardware_info['recommended_workers']}")
+        print(f"Recommended Batch Size: {self.hardware_info['recommended_batch_size']}")
+        print()
+    
+    def check_dependencies(self):
+        """Check if all dependencies are available"""
+        print("🔍 DEPENDENCY CHECK")
+        print("=" * 30)
+        
+        # Check core dependencies first
+        dependencies = {
+            'Ollama': self.check_ollama,
+            'Config': self.check_config,
+            'Python Packages': self.check_python_packages
+        }
+        
+        all_ok = True
+        for name, check_func in dependencies.items():
+            try:
+                if check_func():
+                    print(f"✅ {name}: OK")
+                else:
+                    print(f"❌ {name}: Missing")
+                    all_ok = False
+            except Exception as e:
+                print(f"❌ {name}: Error - {e}")
+                all_ok = False
+        
+        # Only check models if Ollama is running
+        if self.check_ollama():
+            try:
+                if self.check_ollama_models():
+                    print(f"✅ Ollama Models: OK")
+                else:
+                    print(f"❌ Ollama Models: Missing")
+                    all_ok = False
+            except Exception as e:
+                print(f"❌ Ollama Models: Error - {e}")
+                all_ok = False
+            except Exception as e:
+                print(f"⚠️  {name}: Error - {e}")
+                all_ok = False
+        
+        return all_ok
+    
+    def check_ollama(self):
+        """Check Ollama installation and version"""
+        try:
+            import requests
+            response = requests.get("http://localhost:11434/api/version", timeout=5)
+            if response.status_code == 200:
+                version = response.json().get('version', 'unknown')
+                print(f"   Ollama {version}")
+                return True
+        except:
+            pass
+        return False
+    
+    def check_ollama_models(self):
+        """Check and install required Ollama models"""
+        # Skip model check if Ollama is not running
+        if not self.check_ollama():
+            return False
+            
+        required_models = ['embeddinggemma']
+        
+        try:
+            import requests
+            # Check existing models
+            response = requests.get("http://localhost:11434/api/tags", timeout=10)
+            if response.status_code == 200:
+                existing_models = [model['name'].split(':')[0] for model in response.json().get('models', [])]
+                print(f"   📋 Installed models: {existing_models}")
+                
+                # Install missing models
+                for model in required_models:
+                    if model not in existing_models:
+                        print(f"   ⬇️  Installing {model}...")
+                        self.install_ollama_model(model)
+                    else:
+                        print(f"   ✅ {model} already installed")
+                return True
+        except Exception as e:
+            print(f"   ❌ Failed to check models: {e}")
+            return False
+    
+    def install_ollama_model(self, model_name):
+        """Install a specific Ollama model"""
+        try:
+            print(f"   🔄 Pulling {model_name} (this may take a few minutes)...")
+            result = subprocess.run(['ollama', 'pull', model_name], 
+                                  capture_output=True, text=True, timeout=300)
+            if result.returncode == 0:
+                print(f"   ✅ {model_name} installed successfully")
+                return True
+            else:
+                print(f"   ❌ Failed to install {model_name}: {result.stderr}")
+                return False
+        except subprocess.TimeoutExpired:
+            print(f"   ⏰ Timeout installing {model_name}")
+            return False
+        except Exception as e:
+            print(f"   ❌ Error installing {model_name}: {e}")
+            return False
+    
+    def check_config(self):
+        """Check if config.json exists"""
+        return Path('config.json').exists()
+    
+    def check_python_packages(self):
+        """Check critical Python packages"""
+        try:
+            import fitz, requests, supabase
+            return True
+        except ImportError:
+            return False
+    
+    def setup_missing_dependencies(self):
+        """Guide user through missing dependency setup"""
+        print("\n🔧 SETUP MISSING DEPENDENCIES")
+        print("=" * 40)
+        
+        if not self.check_config():
+            print("⚠️  No config.json found")
+            print("💡 Running setup wizard...")
+            self.run_setup_wizard()
+        
+        if not self.check_ollama():
+            print("⚠️  Ollama not running")
+            print("💡 Install instructions:")
+            if self.os_type == 'windows':
+                print("   Windows: Download from https://ollama.ai/download")
+            else:
+                print("   macOS/Linux: curl -fsSL https://ollama.ai/install.sh | sh")
+        elif not self.check_ollama_models():
+            print("⚠️  Required Ollama models missing")
+            print("💡 Models will be installed automatically when needed")
+        
+        if not self.check_python_packages():
+            print("⚠️  Python packages missing")
+            print("💡 Install: pip install -r requirements.txt")
+    
+    def run_setup_wizard(self):
+        """Run the setup wizard if available"""
+        if Path('setup_wizard.py').exists():
+            print("🧙 Starting setup wizard...")
+            subprocess.run([self.python_cmd, 'setup_wizard.py'])
+        else:
+            print("❌ setup_wizard.py not found")
+    
+    def get_optimal_args(self, script_name, user_args):
+        """Generate optimal arguments based on hardware"""
+        args = list(user_args)  # Copy user args
+        
+        # Add hardware-optimized arguments if not already specified
+        if '--workers' not in args and '--parallel-workers' not in args:
+            args.extend(['--workers', str(self.hardware_info['recommended_workers'])])
+        
+        if '--batch-size' not in args:
+            args.extend(['--batch-size', str(self.hardware_info['recommended_batch_size'])])
+        
+        # Add GPU acceleration flags
+        if self.hardware_info['has_metal'] and '--metal' not in args:
+            args.append('--metal')
+        
+        if self.hardware_info['has_cuda'] and '--cuda' not in args:
+            args.append('--cuda')
+        
+        return args
+    
+    def launch_script(self, script_name, args=None):
+        """Launch a script with optimal configuration"""
+        if not self.python_cmd:
+            print("❌ Cannot launch: No suitable Python found")
+            return False
+        
+        script_path = Path(script_name)
+        if not script_path.exists():
+            print(f"❌ Script not found: {script_name}")
+            return False
+        
+        # Get optimal arguments
+        user_args = args or []
+        optimal_args = self.get_optimal_args(script_name, user_args)
+        
+        # Construct command
+        cmd = [self.python_cmd, script_name] + optimal_args
+        
+        print(f"\n🚀 LAUNCHING: {script_name}")
+        print("=" * 50)
+        print(f"Command: {' '.join(cmd)}")
+        print(f"Optimized for: {self.hardware_info['gpu_type'] or 'CPU'}")
+        print()
+        
+        try:
+            subprocess.run(cmd)
+            return True
+        except KeyboardInterrupt:
+            print("\n🛑 Interrupted by user")
+            return False
+        except Exception as e:
+            print(f"❌ Launch error: {e}")
+            return False
+
+def main():
+    print("🌍 UNIVERSAL AI PDF PROCESSOR LAUNCHER")
+    print("=" * 60)
+    print("Auto-detecting system and optimizing configuration...")
+    print()
+    
+    launcher = UniversalLauncher()
+    launcher.print_system_info()
+    
+    # Parse command line arguments
+    if len(sys.argv) < 2:
+        print("📋 AVAILABLE COMMANDS:")
+        print("=" * 30)
+        print("  process <file>     - Process PDF document")
+        print("  search             - Interactive search engine")  
+        print("  status             - System status check")
+        print("  setup              - Run setup wizard")
+        print()
+        print("📝 USAGE EXAMPLES:")
+        print("  python launch.py process document.pdf")
+        print("  python launch.py search")
+        print("  python launch.py status")
+        print("  python launch.py setup")
+        print()
+        return
+    
+    command = sys.argv[1].lower()
+    remaining_args = sys.argv[2:]
+    
+    # Map commands to scripts
+    script_mapping = {
+        'process': 'ai_pdf_processor.py',
+        'search': 'smart_search_engine.py',
+        'status': 'status.py', 
+        'setup': 'setup_wizard.py'
+    }
+    
+    if command not in script_mapping:
+        print(f"❌ Unknown command: {command}")
+        return
+    
+    script_name = script_mapping[command]
+    
+    # Special handling for setup command
+    if command == 'setup':
+        print("🔧 Starting setup wizard...")
+        launcher.launch_script(script_name, remaining_args)
+        print("\n✅ Setup completed!")
+        
+        # Ask user what to do next
+        print("\n🚀 What would you like to do next?")
+        print("1. 📊 Check system status")
+        print("2. 🔍 Test search functionality") 
+        print("3. 📄 Process a PDF document")
+        print("4. ⚙️  Show configuration")
+        print("5. 🚪 Exit")
+        
+        while True:
+            try:
+                choice = input("\nSelect option (1-5): ").strip()
+                
+                if choice == '1':
+                    print("\n📊 Checking system status...")
+                    launcher.launch_script('status.py', [])
+                    break
+                elif choice == '2':
+                    print("\n🔍 Starting search interface...")
+                    launcher.launch_script('smart_search_engine.py', [])
+                    break
+                elif choice == '3':
+                    print("\n📄 Starting PDF processor...")
+                    print("Usage: Place your PDF files in the 'Documents' folder and they will be processed automatically.")
+                    launcher.launch_script('ai_pdf_processor.py', [])
+                    break
+                elif choice == '4':
+                    print("\n⚙️  Showing current configuration...")
+                    try:
+                        with open('config.json', 'r') as f:
+                            import json
+                            config = json.load(f)
+                            print(json.dumps(config, indent=2))
+                    except Exception as e:
+                        print(f"❌ Error reading config: {e}")
+                    break
+                elif choice == '5':
+                    print("👋 Goodbye!")
+                    break
+                else:
+                    print("❌ Invalid choice. Please select 1-5.")
+            except KeyboardInterrupt:
+                print("\n👋 Goodbye!")
+                break
+        return
+    
+    # Check dependencies for other commands
+    if not launcher.check_dependencies():
+        print("\n⚠️  Missing dependencies detected!")
+        launcher.setup_missing_dependencies()
+        
+        # After setup, recheck dependencies
+        if launcher.check_dependencies():
+            print("✅ Dependencies are now satisfied!")
+        else:
+            response = input("\nSome dependencies may still be missing. Continue anyway? (y/N): ").strip().lower()
+            if response != 'y':
+                print("Exiting...")
+                return
+    
+    # Launch with optimal configuration
+    launcher.launch_script(script_name, remaining_args)
+
+if __name__ == "__main__":
+    main()
