@@ -81,9 +81,54 @@ class OllamaClient:
             'has_neural_engine': config.use_neural_engine if config else False
         }
         
+        # Check Ollama version on initialization
+        self.check_ollama_version()
+        
         # Hardware-spezifische Optimierungen anwenden
         if config:
             self.setup_hardware_acceleration()
+    
+    def check_ollama_version(self):
+        """Check if Ollama version supports embeddinggemma and new API"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/version", timeout=5)
+            if response.status_code == 200:
+                version_info = response.json()
+                version = version_info.get('version', 'unknown')
+                print(f"🔧 Ollama Version: {version}")
+                
+                # Check if version is sufficient for embeddinggemma
+                if self.is_version_sufficient(version):
+                    print("✅ Ollama version supports embeddinggemma model")
+                else:
+                    print(f"⚠️  Ollama {version} may not support embeddinggemma")
+                    print("💡 Recommended: Update to Ollama >= 0.11.10")
+            else:
+                print("⚠️  Could not verify Ollama version")
+        except Exception as e:
+            print(f"⚠️  Ollama version check failed: {e}")
+    
+    def is_version_sufficient(self, version_str):
+        """Check if version is >= 0.11.10"""
+        try:
+            # Parse version like "0.11.10" or "0.3.0"
+            version_parts = [int(x) for x in version_str.split('.')]
+            
+            # Minimum required: 0.11.10
+            min_version = [0, 11, 10]
+            
+            # Compare version parts
+            for i in range(min(len(version_parts), len(min_version))):
+                if version_parts[i] > min_version[i]:
+                    return True
+                elif version_parts[i] < min_version[i]:
+                    return False
+            
+            # If all compared parts are equal, check length
+            return len(version_parts) >= len(min_version)
+            
+        except Exception:
+            return False  # Assume insufficient if can't parse
         
     def setup_hardware_acceleration(self):
         """Hardware-Beschleunigung konfigurieren"""
@@ -203,8 +248,10 @@ class OllamaClient:
                 "prompt": prompt
             }
             
+            # Use new API endpoint (/api/embed) - requires Ollama >= 0.3.0
+            # embeddinggemma model requires Ollama >= 0.11.10 anyway
             response = self.session.post(
-                f"{self.base_url}/api/embeddings",
+                f"{self.base_url}/api/embed",
                 json=payload,
                 timeout=60
             )
@@ -212,6 +259,14 @@ class OllamaClient:
             response.raise_for_status()
             return response.json().get('embedding', [])
             
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                logging.error(f"Ollama API endpoint not found. Please update Ollama to version >= 0.11.10")
+                logging.error(f"Current endpoint: {self.base_url}/api/embed")
+                logging.error(f"Run: curl -fsSL https://ollama.ai/install.sh | sh")
+            else:
+                logging.error(f"Ollama HTTP error: {e}")
+            return []
         except Exception as e:
             logging.error(f"Ollama embedding generation error: {e}")
             return []
