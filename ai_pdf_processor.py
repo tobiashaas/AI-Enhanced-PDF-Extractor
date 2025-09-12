@@ -2387,12 +2387,26 @@ def load_config() -> AIProcessingConfig:
     
     if not config_file.exists():
         print("❌ config.json nicht gefunden!")
-        print("   Führen Sie zuerst 'python setup_wizard.py' aus.")
+        print("   Führen Sie zuerst 'python launch.py' aus.")
         sys.exit(1)
     
     try:
         with open(config_file, 'r', encoding='utf-8') as f:
             config_data = json.load(f)
+            
+        # Validate that config is not empty
+        if not config_data or len(config_data) == 0:
+            print("❌ config.json ist leer!")
+            print("   Führen Sie 'python launch.py' aus, um die Konfiguration neu zu erstellen.")
+            sys.exit(1)
+            
+        # Check for required fields
+        required_fields = ['supabase_url', 'supabase_key', 'r2_account_id', 'documents_path']
+        missing_fields = [field for field in required_fields if field not in config_data]
+        if missing_fields:
+            print(f"❌ config.json unvollständig! Fehlende Felder: {missing_fields}")
+            print("   Führen Sie 'python launch.py' aus, um die Konfiguration zu vervollständigen.")
+            sys.exit(1)
             
         return AIProcessingConfig(
             supabase_url=config_data['supabase_url'],

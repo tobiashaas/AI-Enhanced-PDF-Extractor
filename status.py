@@ -22,10 +22,36 @@ class AISystemMonitor:
         config_file = Path("config.json")
         if not config_file.exists():
             print("❌ config.json nicht gefunden!")
+            print("💡 Führen Sie zuerst 'python launch.py' aus, um die Konfiguration zu erstellen.")
             sys.exit(1)
         
-        with open(config_file, 'r') as f:
-            return json.load(f)
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+                
+            # Validate that config is not empty
+            if not config_data or len(config_data) == 0:
+                print("❌ config.json ist leer!")
+                print("💡 Führen Sie 'python launch.py' aus, um die Konfiguration neu zu erstellen.")
+                sys.exit(1)
+                
+            # Check for required fields
+            required_fields = ['supabase_url', 'supabase_key']
+            missing_fields = [field for field in required_fields if field not in config_data]
+            if missing_fields:
+                print(f"❌ config.json unvollständig! Fehlende Felder: {missing_fields}")
+                print("💡 Führen Sie 'python launch.py' aus, um die Konfiguration zu vervollständigen.")
+                sys.exit(1)
+                
+            return config_data
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ config.json ist korrupt! JSON-Fehler: {e}")
+            print("💡 Löschen Sie config.json und führen Sie 'python launch.py' aus.")
+            sys.exit(1)
+        except Exception as e:
+            print(f"❌ Fehler beim Laden der Konfiguration: {e}")
+            sys.exit(1)
     
     def check_ollama_status(self):
         """Check Ollama service and models status"""
