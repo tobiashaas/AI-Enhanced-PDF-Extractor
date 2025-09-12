@@ -8,12 +8,33 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Dict, Optional, Any
 from supabase import create_client, Client
-from schema_compatibility import (
-    map_chunks_data_to_schema, 
-    map_images_data_to_schema,
-    get_existing_image_hashes_compatible,
-    get_image_by_hash_compatible
-)
+
+# Schema compatibility functions (inline)
+def map_chunks_data_to_schema(data):
+    """Map chunks data to current schema"""
+    return data
+
+def map_images_data_to_schema(data):
+    """Map images data to current schema"""
+    return data
+
+def get_existing_image_hashes_compatible(client, hashes):
+    """Get existing image hashes compatible with current schema"""
+    try:
+        result = client.table('images').select('hash').in_('hash', hashes).execute()
+        return [row['hash'] for row in result.data]
+    except Exception as e:
+        logger.error(f"Error getting image hashes: {e}")
+        return []
+
+def get_image_by_hash_compatible(client, hash_value):
+    """Get image by hash compatible with current schema"""
+    try:
+        result = client.table('images').select('*').eq('hash', hash_value).execute()
+        return result.data[0] if result.data else None
+    except Exception as e:
+        logger.error(f"Error getting image by hash: {e}")
+        return None
 
 # Initialize logger
 logger = logging.getLogger(__name__)
