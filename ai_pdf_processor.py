@@ -1267,7 +1267,6 @@ class AIEnhancedPDFProcessor:
             
             # TECHNICAL METADATA for n8n filtering
             'figure_references': figure_refs,
-            'connection_points': connections, 
             'procedures': procedures,
             
             # RICH METADATA for n8n AI Agent
@@ -1281,7 +1280,6 @@ class AIEnhancedPDFProcessor:
             'chunk_index': chunk_index,
             'error_codes': error_codes,
             'figure_references': figure_refs,
-            'connection_points': connections,
             'procedures': procedures,
             'metadata': {
                 'processing_date': datetime.now(timezone.utc).isoformat(),
