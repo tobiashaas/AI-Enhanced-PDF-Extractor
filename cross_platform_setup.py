@@ -104,10 +104,10 @@ def setup_config():
     print("\\n" + "="*60)
     print("🔴 WICHTIGE INFORMATIONEN:")
     print("="*60)
-    print("✅ Supabase & R2 sind bereits konfiguriert")
+    print("✅ Database & R2 sind bereits konfiguriert")
     print("✅ Alle PCs teilen dieselbe Datenbank")
     print("✅ R2 Public Domain ist korrekt gesetzt")
-    print("⚠️  NIEMALS Supabase/R2 Config ändern!")
+    print("⚠️  NIEMALS Database/R2 Config ändern!")
     print("="*60)
     
     return True

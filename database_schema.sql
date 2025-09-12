@@ -1,18 +1,18 @@
 -- ============================================
--- FINALES SUPABASE SCHEMA (EmbeddingGemma 768D) 
--- Optimiert von Supabase AI + angepasst für AI-Enhanced PDF Extractor
--- Features: 768D EmbeddingGemma, R2 Images, Processing Logs, n8n Integration
+-- POSTGRESQL DATABASE SCHEMA (EmbeddingGemma 768D) 
+-- Compatible with PostgreSQL databases including Supabase, AWS RDS, etc.
+-- Features: 768D EmbeddingGemma vectors, Cloud storage integration, Processing logs
 -- ============================================
 
--- Hinweis: Die Datenbank hat die "vector" Extension bereits installiert
--- Falls die Extension nicht vorhanden wäre:
+-- Note: Requires the "vector" extension for pgvector support
+-- Install if not available:
 -- CREATE EXTENSION IF NOT EXISTS vector;
 
 -- -------------------------------------------------
--- 1) HAUPTTABELLEN mit Identity PKs und Normalisierung
---    - Alle Tabellen haben id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
---    - RLS wird am Ende aktiviert; Policies werden angelegt
---    - Fremdschlüssel-Constraints werden inline definiert
+-- 1) MAIN TABLES with Identity PKs and Normalization
+--    - All tables use id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
+--    - RLS will be enabled at the end; Policies will be created
+--    - Foreign key constraints are defined inline
 -- -------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS images (
@@ -24,9 +24,9 @@ CREATE TABLE IF NOT EXISTS images (
   original_filename text NOT NULL,
   page_number integer NOT NULL,
 
-  -- R2/S3 STORAGE INFO
-  storage_url text NOT NULL,                -- Vollständige öffentliche URL: "https://pub-xyz.r2.dev/images/HP_E52645_page5_fig1.jpg"
-  storage_bucket text NOT NULL,             -- "pdf-images"
+  -- CLOUD STORAGE INFO (R2/S3 compatible)
+  storage_url text NOT NULL,                -- Full public URL: "https://pub-xyz.r2.dev/images/HP_E52645_page5_fig1.jpg"
+  storage_bucket text NOT NULL,             -- "pdf-images"  
   storage_key text NOT NULL,                -- "HP/E52645/page_5_figure_1.jpg"
   
   -- ALTERNATIVE URLs für verschiedene Zugriffe
@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS chunks (
   token_count integer,
   embedding vector(768),                    -- WICHTIG: 768D für EmbeddingGemma
 
-  -- PRIMARY SEARCH FIELDS (n8n Filter)
+  -- PRIMARY SEARCH FIELDS (API Filter)
   manufacturer text NOT NULL,
   model text NOT NULL,
   error_codes text[],
@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS chunk_images (
 );
 
 -- -------------------------------------------------
--- 2) PERFORMANCE INDIZES (optimiert für n8n)
+-- 2) PERFORMANCE INDIZES (optimiert für Vektor-Suche)
 -- -------------------------------------------------
 
 -- Vector Index für Embedding-Suche (IVFFLAT). Tune "lists" nach Datenmenge.
@@ -214,7 +214,7 @@ CREATE INDEX IF NOT EXISTS idx_images_image_hash
 CREATE INDEX IF NOT EXISTS idx_images_file_hash
   ON images (file_hash);                           -- Für PDF-bezogene Suchen
 CREATE INDEX IF NOT EXISTS idx_images_manufacturer_model
-  ON images (manufacturer, model);                 -- Für n8n Filter
+  ON images (manufacturer, model);                 -- Für API Filter
 CREATE INDEX IF NOT EXISTS idx_images_storage_key
   ON images (storage_key);                         -- Für R2 Zugriff
 CREATE INDEX IF NOT EXISTS idx_images_document_type_image_type
@@ -553,7 +553,7 @@ ALTER TABLE images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE processing_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chunk_images ENABLE ROW LEVEL SECURITY;
 
--- Policies: konservative Beispiele für n8n (öffentlicher Lesezugriff, geschriebene ops nur für "authenticated")
+-- Policies: konservative Beispiele für API-Zugriff (öffentlicher Lesezugriff, geschriebene ops nur für "authenticated")
 CREATE POLICY "public_select_chunks" ON chunks 
   FOR SELECT USING (true);
 CREATE POLICY "authenticated_insert_chunks" ON chunks 
@@ -578,7 +578,7 @@ CREATE POLICY "public_select_chunk_images" ON chunk_images
 CREATE POLICY "authenticated_insert_chunk_images" ON chunk_images 
   FOR INSERT TO authenticated WITH CHECK (true);
 
--- WICHTIG: Die obigen Policies sind pragmatisch für Integrationen wie n8n.
+-- WICHTIG: Die obigen Policies sind pragmatisch für API-Integrationen.
 -- Für produktive Systeme sollten Policies auf Basis von auth.uid() und tenant-Claims verfeinert werden.
 
 -- -------------------------------------------------
@@ -596,5 +596,5 @@ ANALYZE chunk_images;
 -- - Embedding-Dimension: 768 (EmbeddingGemma) in allen relevanten Funktionen und Spalten.
 -- - RLS: aktiviert; Beispiel-Policies gesetzt — bitte an Produktionsanforderungen anpassen.
 -- - Indizes: IVFFLAT für vector-Search + mehrere Filter-Indizes.
--- - Views & Funktionen: bereit für n8n-Integration und LangChain-ähnliche Abfragen.
+-- - Views & Funktionen: bereit für API-Integration und LangChain-ähnliche Abfragen.
 -- ============================================

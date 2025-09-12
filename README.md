@@ -1,6 +1,9 @@
 # 🚀 AI-Enhanced PDF Extractor
 
-**Professional AI-powered PDF processing system** with **semantic embeddings**, **vision-guided chunking**, **cloud storage**, and **vector database integration**.
+**Professional AI-powered PDF processing system** with **semantic embeddin### Database Setup (PostgreSQL with pgvector)
+1. Create a PostgreSQL database with pgvector extension (Supabase, AWS RDS, or self-hosted)
+2. Enable the pgvector extension: `CREATE EXTENSION vector;`
+3. Import the database schema from `database_schema.sql`, **vision-guided chunking**, **cloud storage**, and **vector database integration**.
 
 ## ⚡ Key Features
 
@@ -8,7 +11,7 @@
 - 📊 **Semantic Embeddings** - 768-dimensional EmbeddingGemma vectors for intelligent search
 - 👁️ **Vision-Guided Chunking** - Smart document structure recognition  
 - ☁️ **Cloud Storage** - Cloudflare R2 integration for scalable image storage
-- 🗄️ **Vector Database** - Supabase/PostgreSQL with pgvector support
+- 🗄️ **Vector Database** - PostgreSQL with pgvector support (Supabase, AWS RDS, etc.)
 - 🔄 **Smart Resume** - Automatic continuation of interrupted processing
 - 📈 **Progress Tracking** - Real-time status monitoring and analytics
 
@@ -26,7 +29,7 @@ PDF Document → AI Vision Analysis → Smart Chunking → Embedding Generation 
 
 - **Python 3.8+** (Windows: `python`, macOS/Linux: `python3`)
 - **Ollama** with models: `llama3.1:8b`, `llava:7b`, `embeddinggemma`
-- **Supabase Account** (or PostgreSQL with pgvector)
+- **PostgreSQL Database with pgvector** (Supabase, AWS RDS, or self-hosted)
 - **Cloudflare R2** (or S3-compatible storage)
 
 ### Installation
@@ -50,7 +53,7 @@ PDF Document → AI Vision Analysis → Smart Chunking → Embedding Generation 
 
 4. **Configure your services:**
    - Copy `config.example.json` to `config.json`
-   - Add your Supabase and Cloudflare R2 credentials
+   - Add your PostgreSQL database and Cloudflare R2 credentials
 
 ### Usage
 
@@ -104,10 +107,10 @@ AI-Enhanced-PDF-Extractor/
 
 ## 🔧 Configuration
 
-### Supabase Setup
-1. Create a new Supabase project
-2. Enable the `pgvector` extension
-3. Import the database schema from `final_supabase_schema.sql`
+### Database Setup (PostgreSQL with pgvector)
+1. Create a PostgreSQL database with pgvector extension (Supabase, AWS RDS, or self-hosted)
+2. Enable the pgvector extension: `CREATE EXTENSION vector;`
+3. Import the database schema from `database_schema.sql`
 4. Add your credentials to `config.json`
 
 ### Cloudflare R2 Setup
@@ -167,7 +170,7 @@ ollama pull embeddinggemma
 - Verify localhost:11434 accessibility
 
 **Database connection errors:**
-- Check Supabase credentials in `config.json`
+- Check database credentials in `config.json`
 - Verify database schema is imported
 - Ensure `pgvector` extension is enabled
 

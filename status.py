@@ -69,7 +69,7 @@ class AISystemMonitor:
         try:
             # Test connection
             result = self.supabase.table("chunks").select("id").limit(1).execute()
-            print("✅ Supabase: VERBUNDEN")
+            print("✅ Database: VERBUNDEN")
             
             # Get statistics
             chunks_count = self.supabase.table("chunks").select("id", count="exact").execute()
