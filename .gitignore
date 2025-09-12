@@ -71,24 +71,20 @@ Thumbs.db
 .cache/
 cache/
 
-# Document files (contain actual PDFs - too large for git)
-Documents/*.pdf
-Documents/**/*.pdf
-*.pdf
-
 # Test files
 test_*.pdf
 sample_*.pdf
-*_test.pdf
 
 # Backup files
 *.bak
 *.backup
 
-# Downloaded test images
-test_image_download.png
-
 # AI model downloads (optional - could be large)
 models/
 *.bin
 *.safetensors
+
+# Auto-added entries
+*.pyc
+Documents/
+Archive_Removed_Files/

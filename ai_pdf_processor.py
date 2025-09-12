@@ -47,6 +47,8 @@ class AIProcessingConfig:
     ollama_base_url: str = "http://localhost:11434"
     vision_model: str = "llava:7b"
     text_model: str = "llama3.1:8b"
+    embedding_model: str = "embeddinggemma"  # Neues Ollama Embedding Model
+    embedding_provider: str = "ollama"  # "ollama" oder "sentence_transformers"
     use_vision_analysis: bool = True
     use_semantic_boundaries: bool = True
     chunking_strategy: str = "intelligent"
@@ -192,6 +194,27 @@ class OllamaClient:
             "confidence": 0.5,
             "analysis_method": "fallback"
         })
+    
+    def generate_embedding(self, model: str, prompt: str) -> List[float]:
+        """Ollama Embedding Generation"""
+        try:
+            payload = {
+                "model": model,
+                "prompt": prompt
+            }
+            
+            response = self.session.post(
+                f"{self.base_url}/api/embeddings",
+                json=payload,
+                timeout=60
+            )
+            
+            response.raise_for_status()
+            return response.json().get('embedding', [])
+            
+        except Exception as e:
+            logging.error(f"Ollama embedding generation error: {e}")
+            return []
 
 class VisionGuidedChunker:
     """Vision AI für PDF Page Analysis und Smart Chunking"""
@@ -535,10 +558,19 @@ class AIEnhancedPDFProcessor:
         self._print_hardware_status()
         
     def _init_embedding_model(self):
-        """Hardware-optimiertes Embedding Model laden"""
+        """Hardware-optimiertes Embedding Model laden - Ollama oder SentenceTransformers"""
+        embedding_provider = getattr(self.config, 'embedding_provider', 'sentence_transformers')
         model_name = getattr(self.config, 'embedding_model', 'all-MiniLM-L6-v2')
         
-        print(f"   🧠 Lade Embedding Model: {model_name}")
+        print(f"   🧠 Lade Embedding Model: {model_name} ({embedding_provider})")
+        
+        if embedding_provider == "ollama":
+            # Neues Ollama embeddinggemma Model
+            print("   ⚡ Ollama Embedding Model (embeddinggemma)")
+            return None  # Kein lokales Model nötig, API-basiert
+        
+        # Fallback: SentenceTransformers für kompatibilität
+        print(f"   🔧 SentenceTransformers Fallback: {model_name}")
         
         # Apple Silicon Optimierung
         if getattr(self.config, 'use_metal_acceleration', False):
@@ -557,6 +589,23 @@ class AIEnhancedPDFProcessor:
         # CPU Fallback
         print("   💻 CPU Embeddings (Standard)")
         return SentenceTransformer(model_name)
+    
+    def generate_chunk_embedding(self, text: str) -> Optional[List[float]]:
+        """Generate embedding using Ollama or SentenceTransformers"""
+        embedding_provider = getattr(self.config, 'embedding_provider', 'sentence_transformers')
+        
+        if embedding_provider == "ollama":
+            # Ollama embeddinggemma API
+            embedding_model = getattr(self.config, 'embedding_model', 'embeddinggemma')
+            return self.ollama.generate_embedding(embedding_model, text)
+        
+        elif self.embedding_model is not None:
+            # SentenceTransformers Fallback
+            return self.embedding_model.encode(text).tolist()
+        
+        else:
+            self.logger.warning("Kein Embedding Model verfügbar")
+            return None
     
     def _print_hardware_status(self):
         """Hardware-Status anzeigen"""
@@ -585,10 +634,12 @@ class AIEnhancedPDFProcessor:
             aws_secret_access_key=self.config.r2_secret_access_key
         )
     
-    def ai_enhanced_chunking_process(self, pdf_document: fitz.Document, manufacturer: str, 
-                                   document_type: str, file_path: str, file_hash: str) -> List[Dict]:
+    def ai_enhanced_chunking_process(self, pdf_document: fitz.Document, document_info: Dict, 
+                                   file_path: str, file_hash: str) -> List[Dict]:
         """Hardware-optimierte AI-enhanced chunking pipeline für große PDFs"""
         
+        manufacturer = document_info['manufacturer']
+        document_type = document_info['document_type']
         total_pages = len(pdf_document)
         print(f"      📄 Verarbeite {total_pages} Seiten mit AI-Enhanced Chunking...")
         self.logger.info(f"Starting AI-enhanced chunking for {manufacturer} {document_type}")
@@ -596,7 +647,7 @@ class AIEnhancedPDFProcessor:
         # Adaptive Strategie für große PDFs
         if total_pages > 1000:
             print(f"      ⚡ Große PDF erkannt ({total_pages} Seiten) - Aktiviere Batch-Verarbeitung")
-            return self._process_large_pdf_optimized(pdf_document, manufacturer, document_type, file_path, file_hash)
+            return self._process_large_pdf_optimized(pdf_document, document_info, file_path, file_hash)
         
         all_chunks = []
         document_context = ""
@@ -654,7 +705,7 @@ class AIEnhancedPDFProcessor:
             # Step 3: Create page chunks using AI insights
             page_chunks = self.create_ai_guided_chunks(
                 page_text, page_num + 1, strategy_info, vision_analysis,
-                manufacturer, document_type, file_path, file_hash
+                document_info, file_path, file_hash
             )
             
             all_chunks.extend(page_chunks)
@@ -694,8 +745,8 @@ class AIEnhancedPDFProcessor:
         self.logger.info(f"AI-enhanced chunking complete: {len(all_chunks)} total chunks")
         return all_chunks
     
-    def _process_large_pdf_optimized(self, pdf_document: fitz.Document, manufacturer: str, 
-                                   document_type: str, file_path: str, file_hash: str) -> List[Dict]:
+    def _process_large_pdf_optimized(self, pdf_document: fitz.Document, document_info: Dict, 
+                                   file_path: str, file_hash: str) -> List[Dict]:
         """Optimierte Verarbeitung für große PDFs (>1000 Seiten)"""
         total_pages = len(pdf_document)
         all_chunks = []
@@ -736,7 +787,7 @@ class AIEnhancedPDFProcessor:
                 
                 page_chunks = self.create_ai_guided_chunks(
                     page_text, page_num + 1, strategy_info, vision_analysis,
-                    manufacturer, document_type, file_path, file_hash
+                    document_info, file_path, file_hash
                 )
                 
                 batch_chunks.extend(page_chunks)
@@ -747,6 +798,7 @@ class AIEnhancedPDFProcessor:
             
             # EXTRACT AND STORE IMAGES FROM THIS BATCH
             batch_images = []
+            original_filename = os.path.basename(file_path)  # Define original_filename for image processing
             print(f"         🖼️  Extrahiere Bilder von Batch {batch_num + 1} (Seiten {start_page + 1}-{end_page})...")
             for page_num in range(start_page, end_page):
                 page = pdf_document[page_num]
@@ -761,6 +813,9 @@ class AIEnhancedPDFProcessor:
                         if pix.n - pix.alpha < 4:  # GRAY or RGB
                             # Convert to PNG
                             img_data = pix.tobytes("png")
+                            
+                            # Generate image hash for duplicate detection (SHA-256)
+                            image_hash = hashlib.sha256(img_data).hexdigest()
                             
                             # Generate R2 key
                             img_hash = hashlib.md5(img_data).hexdigest()[:16]
@@ -794,19 +849,26 @@ class AIEnhancedPDFProcessor:
                                     continue
                             
                             batch_images.append({
+                                'image_hash': image_hash,  # SHA-256 des Bildinhalts
                                 'file_hash': file_hash,
+                                'original_filename': original_filename,
                                 'page_number': page_num + 1,
-                                'image_index': img_index + 1,
-                                'r2_key': r2_key,
-                                'r2_url': r2_url,
+                                'storage_url': r2_url,
+                                'storage_bucket': self.config.r2_bucket_name,
+                                'storage_key': r2_key,
+                                'image_type': 'diagram',  # Default, kann später per AI klassifiziert werden
+                                'figure_reference': f"Page {page_num + 1} Image {img_index + 1}",
+                                'manufacturer': document_info.get('manufacturer', 'Unknown'),
+                                'model': document_info.get('model', 'Unknown'),
+                                'document_type': document_info.get('document_type', 'Unknown'),
+                                'document_source': 'PDF Extraction',
                                 'width': pix.width,
                                 'height': pix.height,
-                                'format': 'PNG',
-                                'metadata': {
-                                    'extracted_at': datetime.now(timezone.utc).isoformat(),
-                                    'size_bytes': len(img_data),
-                                    'status': status
-                                }
+                                'file_size_bytes': len(img_data),
+                                'mime_type': 'image/png',
+                                'processing_status': 'processed',
+                                'vision_analysis': {},  # Wird später gefüllt
+                                'file_path': file_path
                             })
                         
                         pix = None
@@ -840,9 +902,63 @@ class AIEnhancedPDFProcessor:
             if batch_images:
                 try:
                     print(f"         💾 Speichere {len(batch_images)} Bild-Metadaten von Batch {batch_num + 1}...")
-                    self.supabase.table("images").insert(batch_images).execute()
-                    print(f"         ✅ Batch {batch_num + 1} Bilder gespeichert")
-                    self.logger.info(f"Saved batch {batch_num + 1} images")
+                    
+                    # Clean batch_images for database compatibility and check for duplicates
+                    clean_batch_images = []
+                    new_images = []
+                    
+                    for img in batch_images:
+                        clean_img = img.copy()
+                        clean_img.pop('metadata', None)  # Remove metadata field
+                        clean_batch_images.append(clean_img)
+                    
+                    # Check which images are actually new (batch check for efficiency)
+                    if clean_batch_images:
+                        # Get all hashes in this batch
+                        batch_hashes = [img["image_hash"] for img in clean_batch_images]
+                        
+                        # Single query to check all hashes at once
+                        existing_hashes_result = self.supabase.table("images").select("image_hash").in_("image_hash", batch_hashes).execute()
+                        existing_hashes = {row["image_hash"] for row in existing_hashes_result.data}
+                        
+                        # Filter out existing images
+                        for img in clean_batch_images:
+                            if img["image_hash"] not in existing_hashes:
+                                new_images.append(img)
+                    
+                    if new_images:
+                        # Validate that all required fields are present before insert
+                        required_fields = ['image_hash', 'file_hash', 'original_filename', 'page_number', 
+                                         'storage_url', 'storage_bucket', 'storage_key', 'image_type',
+                                         'figure_reference', 'manufacturer', 'document_type', 'width', 'height']
+                        
+                        valid_images = []
+                        for img in new_images:
+                            missing_fields = [field for field in required_fields if field not in img or img[field] is None]
+                            if missing_fields:
+                                print(f"         ❌ Image {img.get('image_hash', 'unknown')[:16]} missing fields: {missing_fields}")
+                                continue
+                            valid_images.append(img)
+                        
+                        if valid_images:
+                            try:
+                                result = self.supabase.table("images").insert(valid_images).execute()
+                                print(f"         ✅ {len(valid_images)} neue Bilder von Batch {batch_num + 1} gespeichert ({len(clean_batch_images) - len(valid_images)} übersprungen)")
+                                self.logger.info(f"Saved {len(valid_images)} new images from batch {batch_num + 1}")
+                            except Exception as insert_error:
+                                error_str = str(insert_error)
+                                if "duplicate key value violates unique constraint" in error_str or "already exists" in error_str:
+                                    print(f"         ⚠️  {len(valid_images)} Bilder bereits vorhanden (DB Constraint) - NORMAL")
+                                    self.logger.info(f"Images from batch {batch_num + 1} already exist in database - skipping")
+                                else:
+                                    print(f"         ❌ INSERT ERROR: {insert_error}")
+                                    self.logger.error(f"Insert error for batch {batch_num + 1}: {insert_error}")
+                                # Continue processing despite image insert failure
+                        else:
+                            print(f"         ⚠️  No valid images to insert from batch {batch_num + 1}")
+                    else:
+                        print(f"         ⚠️  Alle {len(clean_batch_images)} Bilder von Batch {batch_num + 1} bereits vorhanden (Duplikate übersprungen)")
+                        self.logger.info(f"All {len(clean_batch_images)} images from batch {batch_num + 1} were duplicates")
                     
                 except Exception as e:
                     print(f"         ⚠️  Speicherfehler Bilder Batch {batch_num + 1}: {e}")
@@ -887,7 +1003,7 @@ class AIEnhancedPDFProcessor:
             self.logger.warning(f"Intermediate save failed: {e}")
     
     def create_ai_guided_chunks(self, page_text: str, page_num: int, strategy_info: Dict,
-                               vision_analysis: Dict, manufacturer: str, document_type: str,
+                               vision_analysis: Dict, document_info: Dict,
                                file_path: str, file_hash: str) -> List[Dict]:
         """Create chunks using AI guidance and optimal split points"""
         
@@ -897,7 +1013,7 @@ class AIEnhancedPDFProcessor:
         if len(paragraphs) < 2:
             # Single paragraph or very short text
             return [self.create_chunk_data(
-                page_text, page_num, 0, manufacturer, document_type,
+                page_text, page_num, 0, document_info,
                 file_path, file_hash, strategy_info.get('primary_strategy', 'text')
             )]
         
@@ -934,8 +1050,8 @@ class AIEnhancedPDFProcessor:
             if should_split or i == len(paragraphs) - 1:
                 if current_chunk_paragraphs:
                     chunk_data = self.create_chunk_data(
-                        current_content, page_num, chunk_index, manufacturer,
-                        document_type, file_path, file_hash, chunk_type
+                        current_content, page_num, chunk_index, document_info,
+                        file_path, file_hash, chunk_type
                     )
                     chunks.append(chunk_data)
                     chunk_index += 1
@@ -944,28 +1060,87 @@ class AIEnhancedPDFProcessor:
         return chunks
     
     def create_chunk_data(self, chunk_text: str, page_num: int, chunk_index: int,
-                         manufacturer: str, document_type: str, file_path: str,
-                         file_hash: str, chunk_type: str) -> Dict:
-        """Create comprehensive chunk data with AI-enhanced metadata"""
+                         document_info: Dict, file_path: str, file_hash: str, chunk_type: str) -> Dict:
+        """Create comprehensive chunk data optimized for n8n Vector Store with document types"""
         
-        # Generate embedding
+        # Extract document information
+        manufacturer = document_info['manufacturer']
+        document_type = document_info['document_type']
+        document_subtype = document_info.get('document_subtype')
+        document_priority = document_info.get('document_priority', 'normal')
+        document_source = document_info.get('document_source', 'Official Manufacturer')
+        
+        # Generate embedding for n8n Vector Store
         try:
-            embedding = self.embedding_model.encode(chunk_text).tolist()
+            embedding = self.generate_chunk_embedding(chunk_text)
+            if embedding is None or len(embedding) == 0:
+                self.logger.warning(f"Empty embedding generated for chunk, skipping...")
+                embedding = None
         except Exception as e:
             self.logger.error(f"Error generating chunk embedding: {e}")
             embedding = None
         
-        # Extract enhanced metadata using AI insights
+        # Extract RICH METADATA for n8n intelligent search
         error_codes = self.extract_error_codes_ai(chunk_text, manufacturer)
         figure_refs = self.extract_figure_references_ai(chunk_text)
         connections = self.extract_connection_points_ai(chunk_text)
         procedures = self.extract_procedures_ai(chunk_text)
         
+        # Extract MODEL from manufacturer string (HP E52645 -> E52645)
+        model = self.extract_model_from_manufacturer(manufacturer)
+        base_manufacturer = self.extract_base_manufacturer(manufacturer)
+        
+        # Determine problem type for n8n categorization
+        problem_type = self.determine_problem_type(chunk_text, chunk_type)
+        procedure_type = self.determine_procedure_type(chunk_text, chunk_type, document_type)
+        
+        # Create n8n-optimized metadata with document context
+        n8n_metadata = {
+            'confidence': self.calculate_chunk_confidence(chunk_text, error_codes, procedures),
+            'related_models': self.find_related_models(model, base_manufacturer),
+            'tools_required': self.extract_tools_required(chunk_text),
+            'difficulty_level': self.assess_difficulty_level(chunk_text, procedures),
+            'estimated_time': self.estimate_repair_time(chunk_text, procedure_type),
+            'safety_warnings': self.extract_safety_warnings(chunk_text),
+            'parts_mentioned': self.extract_parts_mentioned(chunk_text),
+            'document_context': {
+                'subtype': document_subtype,
+                'source_reliability': 'high' if document_source == 'Official Manufacturer' else 'medium',
+                'content_freshness': self.assess_content_freshness(document_type, document_priority)
+            }
+        }
+        
         return {
+            # Core content for n8n Vector Store
             'content': chunk_text,
+            'token_count': len(chunk_text.split()),  # Supabase inspired token count
             'embedding': embedding,
-            'manufacturer': manufacturer,
-            'document_type': document_type,
+            
+            # PRIMARY SEARCH FIELDS for n8n
+            'manufacturer': base_manufacturer,      # "HP", "Canon" 
+            'model': model,                        # "E52645", "X580"
+            'error_codes': error_codes,            # ["C0001", "C0010"]
+            'problem_type': problem_type,          # "scanner_issue", "paper_jam"
+            'procedure_type': procedure_type,      # "troubleshooting", "maintenance"
+            
+            # ENHANCED DOCUMENT CONTEXT for n8n
+            'document_type': document_type,        # "Service Manual", "Bulletin", "CPMD", "Video"
+            'document_subtype': document_subtype,  # "Service Bulletin", "Parts Replacement Video"
+            'document_priority': document_priority, # "urgent", "normal", "reference"
+            'document_source': document_source,    # "Official Manufacturer", "Internal", "Third Party"
+            'page_number': page_num,
+            'chunk_type': chunk_type,             # "error_procedure", "part_replacement"
+            'chunk_index': chunk_index,
+            
+            # TECHNICAL METADATA for n8n filtering
+            'figure_references': figure_refs,
+            'connection_points': connections, 
+            'procedures': procedures,
+            
+            # RICH METADATA for n8n AI Agent
+            'metadata': n8n_metadata,
+            
+            # SYSTEM FIELDS
             'file_path': file_path,
             'original_filename': os.path.basename(file_path),
             'file_hash': file_hash,
@@ -1085,49 +1260,347 @@ class AIEnhancedPDFProcessor:
         
         return list(set(procedures))
     
+    def extract_model_from_manufacturer(self, manufacturer: str) -> str:
+        """Extract pure model number from manufacturer string"""
+        # "HP E52645" -> "E52645"
+        parts = manufacturer.split()
+        if len(parts) > 1:
+            return parts[1]  # Model part
+        return manufacturer
+    
+    def extract_base_manufacturer(self, manufacturer: str) -> str:
+        """Extract base manufacturer from manufacturer string"""
+        # "HP E52645" -> "HP"
+        return manufacturer.split()[0]
+    
+    def determine_problem_type(self, text: str, chunk_type: str) -> str:
+        """Determine problem type for n8n categorization"""
+        text_lower = text.lower()
+        
+        problem_types = {
+            'scanner_issue': ['scanner', 'scan', 'calibration', 'adf'],
+            'paper_jam': ['paper jam', 'jam', 'paper feed', 'paper path'],
+            'toner_issue': ['toner', 'cartridge', 'ink', 'supply'],
+            'display_issue': ['display', 'screen', 'panel', 'lcd'],
+            'network_issue': ['network', 'wifi', 'ethernet', 'connection'],
+            'fuser_issue': ['fuser', 'heating', 'temperature'],
+            'motor_issue': ['motor', 'drive', 'gear', 'movement'],
+            'sensor_issue': ['sensor', 'detection', 'position'],
+            'memory_issue': ['memory', 'ram', 'storage', 'disk'],
+            'power_issue': ['power', 'voltage', 'electrical', 'psu']
+        }
+        
+        for problem_type, keywords in problem_types.items():
+            if any(keyword in text_lower for keyword in keywords):
+                return problem_type
+        
+        # Fallback based on chunk_type
+        if 'error' in chunk_type:
+            return 'error_general'
+        elif 'maintenance' in chunk_type:
+            return 'maintenance'
+        
+        return 'general'
+    
+    def determine_procedure_type(self, text: str, chunk_type: str, document_type: str = None) -> str:
+        """Determine procedure type for n8n workflow categorization with document context"""
+        text_lower = text.lower()
+        
+        # Document-type specific procedure types
+        if document_type == 'CPMD':
+            return 'official_repair_procedure'
+        elif document_type == 'Service Bulletin':
+            return 'urgent_procedure'
+        elif document_type == 'Video':
+            return 'visual_instruction'
+        elif document_type == 'Parts Manual':
+            return 'part_specification'
+        
+        # Standard procedure type detection
+        if any(word in text_lower for word in ['troubleshoot', 'error', 'fault', 'problem', 'diagnos']):
+            return 'troubleshooting'
+        elif any(word in text_lower for word in ['replace', 'install', 'remove', 'exchange']):
+            return 'part_replacement'
+        elif any(word in text_lower for word in ['clean', 'maintenance', 'service', 'calibrate']):
+            return 'maintenance'
+        elif any(word in text_lower for word in ['setup', 'configure', 'initial', 'install']):
+            return 'installation'
+        elif any(word in text_lower for word in ['test', 'verify', 'check', 'validate']):
+            return 'testing'
+        
+        return 'general_procedure'
+    
+    def assess_content_freshness(self, document_type: str, document_priority: str) -> str:
+        """Assess content freshness based on document type and priority"""
+        if document_type in ['Service Bulletin', 'Technical Information', 'CPMD']:
+            if document_priority == 'urgent':
+                return 'very_fresh'  # Recent urgent bulletin
+            return 'fresh'  # Recent technical info
+        elif document_type == 'Video':
+            return 'fresh'  # Video instructions are usually recent
+        elif document_type in ['Service Manual', 'Parts Manual']:
+            return 'stable'  # Standard documentation
+        
+        return 'unknown'
+    
+    def calculate_chunk_confidence(self, text: str, error_codes: List[str], procedures: List[str]) -> float:
+        """Calculate confidence score for chunk relevance"""
+        confidence = 0.5  # Base confidence
+        
+        # More error codes = higher confidence
+        if error_codes:
+            confidence += min(len(error_codes) * 0.1, 0.3)
+        
+        # More procedures = higher confidence  
+        if procedures:
+            confidence += min(len(procedures) * 0.05, 0.2)
+        
+        # Technical terms increase confidence
+        technical_terms = ['step', 'procedure', 'remove', 'install', 'check', 'verify']
+        technical_count = sum(1 for term in technical_terms if term.lower() in text.lower())
+        confidence += min(technical_count * 0.02, 0.1)
+        
+        return min(confidence, 1.0)
+    
+    def find_related_models(self, model: str, manufacturer: str) -> List[str]:
+        """Find related models for cross-reference"""
+        if not model:
+            return []
+        
+        # HP model families
+        if manufacturer == 'HP':
+            if model.startswith('E'):
+                # E-Series models
+                e_series = ['E50045', 'E52645', 'E55040', 'E57540']
+                return [m for m in e_series if m != model]
+            elif model.startswith('X'):
+                # X-Series models  
+                return ['X580']
+        
+        return []
+    
+    def extract_tools_required(self, text: str) -> List[str]:
+        """Extract required tools from text"""
+        tools = []
+        tool_patterns = [
+            r'screwdriver', r'phillips head', r'flathead',
+            r'wrench', r'spanner', r'hex key', r'allen key',
+            r'pliers', r'tweezers', r'multimeter',
+            r'torque wrench', r'socket', r'ratchet'
+        ]
+        
+        text_lower = text.lower()
+        for pattern in tool_patterns:
+            if re.search(pattern, text_lower):
+                tools.append(pattern.replace(r'\b', '').replace(r'\\', ''))
+        
+        return list(set(tools))
+    
+    def assess_difficulty_level(self, text: str, procedures: List[str]) -> str:
+        """Assess technical difficulty level"""
+        text_lower = text.lower()
+        
+        # High difficulty indicators
+        if any(word in text_lower for word in ['disassemble', 'motherboard', 'firmware', 'calibration', 'alignment']):
+            return 'expert'
+        
+        # Medium difficulty indicators  
+        if any(word in text_lower for word in ['replace', 'remove', 'install', 'adjust']):
+            return 'intermediate'
+        
+        # Many steps = higher difficulty
+        if len(procedures) > 5:
+            return 'intermediate'
+        elif len(procedures) > 10:
+            return 'expert'
+        
+        return 'basic'
+    
+    def estimate_repair_time(self, text: str, procedure_type: str) -> str:
+        """Estimate repair time based on procedure complexity"""
+        text_lower = text.lower()
+        
+        # Look for explicit time mentions
+        time_match = re.search(r'(\d+)\s*(minute|hour|min|hr)', text_lower)
+        if time_match:
+            return f"{time_match.group(1)} {time_match.group(2)}"
+        
+        # Estimate based on procedure type
+        time_estimates = {
+            'troubleshooting': '15-30 minutes',
+            'part_replacement': '30-60 minutes', 
+            'maintenance': '20-45 minutes',
+            'installation': '45-90 minutes',
+            'testing': '10-20 minutes'
+        }
+        
+        return time_estimates.get(procedure_type, '30 minutes')
+    
+    def extract_safety_warnings(self, text: str) -> List[str]:
+        """Extract safety warnings and cautions"""
+        warnings = []
+        warning_patterns = [
+            r'caution[:\s]([^.]+)',
+            r'warning[:\s]([^.]+)',
+            r'danger[:\s]([^.]+)',
+            r'notice[:\s]([^.]+)'
+        ]
+        
+        for pattern in warning_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            warnings.extend([match.strip() for match in matches])
+        
+        return warnings[:3]  # Limit to 3 most important
+    
+    def extract_parts_mentioned(self, text: str) -> List[str]:
+        """Extract mentioned parts/components"""
+        parts = []
+        part_patterns = [
+            r'fuser', r'scanner', r'adf', r'pickup roller',
+            r'toner cartridge', r'drum', r'transfer belt',
+            r'mainboard', r'control panel', r'display',
+            r'motor', r'sensor', r'cable', r'connector'
+        ]
+        
+        text_lower = text.lower()
+        for pattern in part_patterns:
+            if re.search(pattern, text_lower):
+                parts.append(pattern.replace(r'\b', ''))
+        
+        return list(set(parts))
+    
     def parse_file_path(self, file_path: str) -> Tuple[str, str]:
-        """Parse manufacturer and document type from file path and name"""
+        """Enhanced filename-based manufacturer and model detection"""
         path_str = str(file_path).lower()
         filename = os.path.basename(file_path).lower()
         
-        # Manufacturer detection
+        # Enhanced manufacturer detection with model extraction
         manufacturers = {
-            'hp': ['hp_', 'hewlett', 'packard'],
-            'konica minolta': ['konica', 'minolta'],
-            'kyocera': ['kyocera'],
-            'canon': ['canon'],
-            'brother': ['brother'],
-            'xerox': ['xerox'],
-            'lexmark': ['lexmark'],
-            'fujifilm': ['fujifilm'],
-            'utax': ['utax'],
-            'ricoh': ['ricoh'],
-            'sharp': ['sharp']
+            'HP': {
+                'keywords': ['hp_', 'hewlett', 'packard'],
+                'model_patterns': [
+                    r'hp[_\-]([a-z]?\d+[a-z]*(?:[_\-]\d+)*)',  # HP_E50045, HP_X580
+                    r'([a-z]?\d+[a-z]*(?:[_\-]\d+)*)_sm',       # E50045_SM
+                    r'([a-z]\d+)',                              # E778, X580
+                ]
+            },
+            'Konica Minolta': {
+                'keywords': ['konica', 'minolta'],
+                'model_patterns': [r'(bizhub[\s\-]?\d+)', r'(magicolor[\s\-]?\d+)']
+            },
+            'Kyocera': {
+                'keywords': ['kyocera'],
+                'model_patterns': [r'(ecosys[\s\-]?\w+)', r'(taskalfa[\s\-]?\d+)']
+            },
+            'Canon': {
+                'keywords': ['canon'],
+                'model_patterns': [r'(imagerunner[\s\-]?\w+)', r'(ir[\s\-]?\d+)']
+            },
+            'Brother': {
+                'keywords': ['brother'],
+                'model_patterns': [r'(dcp[\s\-]?\d+)', r'(mfc[\s\-]?\d+)']
+            },
+            'Xerox': {
+                'keywords': ['xerox'],
+                'model_patterns': [r'(workcentre[\s\-]?\d+)', r'(phaser[\s\-]?\d+)']
+            },
+            'Lexmark': {
+                'keywords': ['lexmark'],
+                'model_patterns': [r'([a-z]\d+)', r'(optra[\s\-]?\w+)']
+            },
+            'Ricoh': {
+                'keywords': ['ricoh'],
+                'model_patterns': [r'(aficio[\s\-]?\w+)', r'(mp[\s\-]?\d+)']
+            }
         }
         
-        manufacturer = "Unknown"
-        for mfg, keywords in manufacturers.items():
+        detected_manufacturer = "Unknown"
+        detected_model = ""
+        
+        # Enhanced detection using filename context
+        for mfg, info in manufacturers.items():
+            keywords = info['keywords']
+            model_patterns = info['model_patterns']
+            
+            # Check if manufacturer keyword present
             if any(keyword in filename or keyword in path_str for keyword in keywords):
-                manufacturer = mfg.title()
+                detected_manufacturer = mfg
+                
+                # Extract specific model from filename
+                for pattern in model_patterns:
+                    match = re.search(pattern, filename)
+                    if match:
+                        detected_model = match.group(1).upper()
+                        break
+                
+                # If no specific pattern, try generic extraction
+                if not detected_model:
+                    # Look for model numbers in filename context
+                    model_match = re.search(r'([a-z]?\d+[a-z]*(?:[_\-]\d+)*)', filename)
+                    if model_match:
+                        detected_model = model_match.group(1).upper()
+                
                 break
         
-        # Document type detection
+        # Document type detection with enhanced context
         doc_types = {
             'Service Manual': ['sm', 'service', 'manual', 'repair'],
-            'Parts Manual': ['parts', 'component'],
-            'User Manual': ['user', 'owner'],
-            'Installation': ['install', 'setup'],
-            'Firmware': ['firmware', 'fw'],
-            'CPMD': ['cpmd']
+            'Parts Manual': ['parts', 'component', 'fru', 'spare'],
+            'Technical Information': ['technical', 'info', 'bulletin', 'advisory'],
+            'Service Bulletin': ['bulletin', 'alert', 'notice'],
+            'CPMD': ['cpmd'],
+            'Video': ['video', 'tutorial', 'instruction'],
+            'Installation': ['install', 'setup', 'configuration'],
+            'Firmware': ['firmware', 'fw', 'software'],
+            'Troubleshooting': ['troubleshoot', 'error', 'diagnostic'],
+            'Maintenance': ['maintenance', 'clean', 'replace', 'service']
         }
         
         document_type = "Service Manual"  # Default
+        document_subtype = None
+        document_priority = "normal"
+        document_source = "Official Manufacturer"  # Default für alle Hersteller
+        
         for doc_type, keywords in doc_types.items():
             if any(keyword in filename for keyword in keywords):
                 document_type = doc_type
                 break
         
-        return manufacturer, document_type
+        # Determine document priority based on type and keywords
+        if document_type in ['Service Bulletin', 'Technical Information', 'CPMD']:
+            # Check for urgent keywords
+            if any(urgent in filename for urgent in ['urgent', 'critical', 'immediate']):
+                document_priority = "urgent"
+            else:
+                document_priority = "normal"
+        
+        # Determine document subtype
+        if document_type == 'Technical Information':
+            if 'bulletin' in filename:
+                document_subtype = 'Service Bulletin'
+            elif 'advisory' in filename:
+                document_subtype = 'Technical Advisory'
+        elif document_type == 'Video':
+            if 'replacement' in filename or 'replace' in filename:
+                document_subtype = 'Parts Replacement Video'
+            elif 'troubleshoot' in filename:
+                document_subtype = 'Troubleshooting Video'
+        
+        # Enhanced logging with document classification
+        full_info = f"{detected_manufacturer} {detected_model}" if detected_model else detected_manufacturer
+        self.logger.info(f"Detected: {full_info} - {document_type}")
+        if document_subtype:
+            self.logger.info(f"Subtype: {document_subtype}")
+        if document_priority != "normal":
+            self.logger.info(f"Priority: {document_priority}")
+        
+        return {
+            'manufacturer': full_info if detected_model else detected_manufacturer,
+            'document_type': document_type,
+            'document_subtype': document_subtype,
+            'document_priority': document_priority,
+            'document_source': document_source
+        }
     
     def get_file_hash(self, file_path: str) -> str:
         """Generate SHA-256 hash of file for duplicate detection"""
@@ -1140,13 +1613,97 @@ class AIEnhancedPDFProcessor:
     def is_already_processed(self, file_hash: str) -> bool:
         """Check if file was already processed successfully"""
         try:
-            result = self.supabase.table("processing_log").select("status").eq("file_hash", file_hash).execute()
+            result = self.supabase.table("processing_logs").select("status").eq("file_hash", file_hash).execute()
             if result.data:
                 return result.data[0]["status"] == "completed"
             return False
         except Exception as e:
             self.logger.error(f"Error checking processing status: {e}")
             return False
+
+    def check_processing_status(self, file_hash: str) -> Dict:
+        """Enhanced check using new processing_logs table"""
+        try:
+            result = self.supabase.rpc(
+                'check_file_processed', 
+                {'input_file_hash': file_hash}
+            ).execute()
+            
+            if result.data and len(result.data) > 0:
+                status = result.data[0]
+                return {
+                    'is_processed': status['is_processed'],
+                    'status': status['processing_status'],
+                    'chunks_count': status['chunks_count'],
+                    'images_count': status['images_count']
+                }
+            else:
+                return {
+                    'is_processed': False,
+                    'status': 'not_found',
+                    'chunks_count': 0,
+                    'images_count': 0
+                }
+                
+        except Exception as e:
+            self.logger.warning(f"Error checking processing status: {e}")
+            return {
+                'is_processed': False,
+                'status': 'error',
+                'chunks_count': 0,
+                'images_count': 0
+            }
+
+    def start_processing_session(self, file_path: str, file_hash: str, document_info: Dict) -> int:
+        """Start new processing session and get log ID"""
+        try:
+            result = self.supabase.rpc(
+                'start_processing',
+                {
+                    'input_file_path': file_path,
+                    'input_file_hash': file_hash,
+                    'input_filename': os.path.basename(file_path),
+                    'input_document_info': document_info
+                }
+            ).execute()
+            
+            return result.data if result.data else None
+            
+        except Exception as e:
+            self.logger.error(f"Error starting processing session: {e}")
+            return None
+
+    def update_processing_progress(self, log_id: int, stage: str, progress: int, 
+                                 chunks_count: int = None, images_count: int = None):
+        """Update processing progress"""
+        try:
+            self.supabase.rpc(
+                'update_processing_progress',
+                {
+                    'log_id': log_id,
+                    'new_stage': stage,
+                    'progress': progress,
+                    'chunks_count': chunks_count,
+                    'images_count': images_count
+                }
+            ).execute()
+            
+        except Exception as e:
+            self.logger.warning(f"Error updating progress: {e}")
+
+    def complete_processing_session(self, log_id: int, processing_time: int):
+        """Mark processing as completed"""
+        try:
+            self.supabase.rpc(
+                'complete_processing',
+                {
+                    'log_id': log_id,
+                    'processing_time': processing_time
+                }
+            ).execute()
+            
+        except Exception as e:
+            self.logger.warning(f"Error completing processing: {e}")
     
     def get_processed_pages(self, file_hash: str) -> set:
         """Get set of already processed page numbers for this file"""
@@ -1207,7 +1764,7 @@ class AIEnhancedPDFProcessor:
         except Exception as e:
             self.logger.error(f"Error logging error: {e}")
     
-    def extract_images_from_pdf(self, pdf_document: fitz.Document, file_hash: str) -> List[Dict]:
+    def extract_images_from_pdf(self, pdf_document: fitz.Document, file_hash: str, original_filename: str, document_info: Dict) -> List[Dict]:
         """Extract and upload images from PDF to R2 storage"""
         images = []
         total_pages = len(pdf_document)
@@ -1244,13 +1801,38 @@ class AIEnhancedPDFProcessor:
                     xref = img[0]
                     pix = fitz.Pixmap(pdf_document, xref)
                     
-                    if pix.n - pix.alpha < 4:  # GRAY or RGB
-                        # Convert to PNG
-                        img_data = pix.tobytes("png")
+                    # Try to get original format first (for CMYK and better quality)
+                    try:
+                        img_dict = pdf_document.extract_image(xref)
+                        img_data = img_dict["image"]
+                        original_ext = img_dict["ext"]
+                        mime_type = f"image/{original_ext}"
+                        if original_ext == "jpg":
+                            mime_type = "image/jpeg"
                         
-                        # Generate R2 key
+                        print(f"         📸 Original Format: {original_ext} ({len(img_data)} bytes)")
+                        
+                        # Generate R2 key with original extension
                         img_hash = hashlib.md5(img_data).hexdigest()[:16]
-                        r2_key = f"images/{file_hash}/page_{page_num+1}_img_{img_index+1}_{img_hash}.png"
+                        r2_key = f"images/{file_hash}/page_{page_num+1}_img_{img_index+1}_{img_hash}.{original_ext}"
+                        
+                    except Exception as extract_error:
+                        # Fallback to pixmap conversion for non-standard images
+                        if pix.n - pix.alpha < 4:  # GRAY or RGB
+                            img_data = pix.tobytes("png")
+                            original_ext = "png"
+                            mime_type = "image/png"
+                            
+                            print(f"         🔄 Fallback PNG: ({len(img_data)} bytes)")
+                            
+                            # Generate R2 key
+                            img_hash = hashlib.md5(img_data).hexdigest()[:16]
+                            r2_key = f"images/{file_hash}/page_{page_num+1}_img_{img_index+1}_{img_hash}.png"
+                        else:
+                            # Skip CMYK images that can't be converted
+                            print(f"         ⚠️  Skipping CMYK image (channels: {pix.n})")
+                            pix = None
+                            continue
                         
                         # ✅ PRÜFE OB BILD BEREITS IN R2 EXISTIERT
                         try:
@@ -1265,19 +1847,37 @@ class AIEnhancedPDFProcessor:
                             public_domain_id = getattr(self.config, 'r2_public_domain_id', self.config.r2_account_id)
                             r2_url = f"https://pub-{public_domain_id}.r2.dev/{r2_key}"
                             
+                            # Generate comprehensive image hash for database
+                            image_hash = hashlib.sha256(img_data).hexdigest()
+                            
                             images.append({
+                                # Required NOT NULL fields
+                                'image_hash': image_hash,
                                 'file_hash': file_hash,
+                                'original_filename': original_filename,
                                 'page_number': page_num + 1,
-                                'image_index': img_index + 1,
-                                'r2_key': r2_key,
-                                'r2_url': r2_url,
+                                'storage_url': r2_url,
+                                'storage_bucket': self.config.r2_bucket_name,
+                                'storage_key': r2_key,
+                                'image_type': 'diagram',  # Default classification
+                                'manufacturer': document_info['manufacturer'],
+                                'model': document_info.get('model', 'Unknown'),
+                                'document_type': document_info['document_type'],
+                                
+                                # Optional technical fields
                                 'width': pix.width,
                                 'height': pix.height,
-                                'format': 'PNG',
+                                'file_size_bytes': len(img_data),
+                                'document_source': document_info.get('document_source', 'PDF'),
+                                'mime_type': mime_type,
+                                
+                                # Metadata
                                 'metadata': {
                                     'extracted_at': datetime.now(timezone.utc).isoformat(),
                                     'size_bytes': len(img_data),
-                                    'status': 'reused_existing'
+                                    'status': 'reused_existing',
+                                    'original_format': original_ext,
+                                    'r2_key': r2_key  # Keep for compatibility
                                 }
                             })
                             
@@ -1293,7 +1893,7 @@ class AIEnhancedPDFProcessor:
                                         Bucket=self.config.r2_bucket_name,
                                         Key=r2_key,
                                         Body=img_data,
-                                        ContentType="image/png"
+                                        ContentType=mime_type
                                     )
                                     
                                     # Generate public URL
@@ -1303,19 +1903,37 @@ class AIEnhancedPDFProcessor:
                                     size_kb = len(img_data) / 1024
                                     print(f"         ✅ Erfolgreich hochgeladen ({size_kb:.1f} KB)")
                                     
+                                    # Generate comprehensive image hash for database
+                                    image_hash = hashlib.sha256(img_data).hexdigest()
+                                    
                                     images.append({
+                                        # Required NOT NULL fields
+                                        'image_hash': image_hash,
                                         'file_hash': file_hash,
+                                        'original_filename': original_filename,
                                         'page_number': page_num + 1,
-                                        'image_index': img_index + 1,
-                                        'r2_key': r2_key,
-                                        'r2_url': r2_url,
+                                        'storage_url': r2_url,
+                                        'storage_bucket': self.config.r2_bucket_name,
+                                        'storage_key': r2_key,
+                                        'image_type': 'diagram',  # Default classification
+                                        'manufacturer': document_info['manufacturer'],
+                                        'model': document_info.get('model', 'Unknown'),
+                                        'document_type': document_info['document_type'],
+                                        
+                                        # Optional technical fields
                                         'width': pix.width,
                                         'height': pix.height,
-                                        'format': 'PNG',
+                                        'file_size_bytes': len(img_data),
+                                        'document_source': document_info.get('document_source', 'PDF'),
+                                        'mime_type': mime_type,
+                                        
+                                        # Metadata
                                         'metadata': {
                                             'extracted_at': datetime.now(timezone.utc).isoformat(),
                                             'size_bytes': len(img_data),
-                                            'status': 'newly_uploaded'
+                                            'status': 'newly_uploaded',
+                                            'original_format': original_ext,
+                                            'r2_key': r2_key  # Keep for compatibility
                                         }
                                     })
                                     
@@ -1337,7 +1955,165 @@ class AIEnhancedPDFProcessor:
         print(f"      🎉 Bildextraktion abgeschlossen: {len(images)}/{total_images_found} erfolgreich")
         return images
     
-    def store_chunks_in_database(self, chunks: List[Dict], images: List[Dict]):
+    def store_chunks_and_images_enhanced(self, chunks: List[Dict], images: List[Dict], processing_log_id: int):
+        """Enhanced storage with normalized many-to-many image relationships"""
+        
+        # First, store images and get their IDs
+        image_ids = []
+        image_page_mapping = {}  # Map page numbers to image IDs
+        
+        if images:
+            try:
+                print(f"      🖼️  Speichere {len(images)} Bilder...")
+                
+                # Prepare images for database (remove non-DB fields)
+                db_images = []
+                for img in images:
+                    db_img = img.copy()
+                    # Remove fields that don't exist in database
+                    db_img.pop('image_data', None)
+                    db_img.pop('pix', None)
+                    db_img.pop('format', None)  # format column doesn't exist in schema
+                    db_img.pop('metadata', None)  # metadata column doesn't exist in schema
+                    db_images.append(db_img)
+                
+                # Store images in batches with duplicate checking
+                batch_size = 50
+                for i in range(0, len(db_images), batch_size):
+                    batch = db_images[i:i + batch_size]
+                    
+                    # Check for duplicates before inserting (batch check for efficiency)
+                    new_batch = []
+                    if batch:
+                        # Get all hashes in this batch  
+                        batch_hashes = [img["image_hash"] for img in batch]
+                        
+                        # Single query to check all hashes at once
+                        existing_hashes_result = self.supabase.table("images").select("image_hash").in_("image_hash", batch_hashes).execute()
+                        existing_hashes = {row["image_hash"] for row in existing_hashes_result.data}
+                        
+                        # Filter out existing images
+                        for img in batch:
+                            if img["image_hash"] not in existing_hashes:
+                                new_batch.append(img)
+                    
+                    if new_batch:
+                        try:
+                            result = self.supabase.table("images").insert(new_batch).execute()
+                            if result.data:
+                                for j, img_data in enumerate(result.data):
+                                    img_id = img_data['id']
+                                    img_page = img_data['page_number']
+                                    image_ids.append(img_id)
+                                    
+                                    # Build page mapping for chunk linking
+                                    if img_page not in image_page_mapping:
+                                        image_page_mapping[img_page] = []
+                        except Exception as insert_error:
+                            error_str = str(insert_error)
+                            if "duplicate key value violates unique constraint" in error_str or "already exists" in error_str:
+                                print(f"         ⚠️  Batch images already exist (DB Constraint) - continuing")
+                                self.logger.info(f"Batch images already exist in database - skipping")
+                            else:
+                                print(f"         ❌ Image batch insert error: {insert_error}")
+                                self.logger.error(f"Image batch insert error: {insert_error}")
+                            # Continue processing despite image insert failure
+                                image_page_mapping[img_page].append(img_id)
+                    
+                    # Also get IDs for existing duplicates
+                    for img in batch:
+                        if img not in new_batch:
+                            existing_img = self.supabase.table("images").select("id", "page_number").eq("image_hash", img["image_hash"]).execute()
+                            if existing_img.data:
+                                img_id = existing_img.data[0]['id']
+                                img_page = existing_img.data[0]['page_number']
+                                image_ids.append(img_id)
+                                
+                                if img_page not in image_page_mapping:
+                                    image_page_mapping[img_page] = []
+                                image_page_mapping[img_page].append(img_id)
+                
+                print(f"      ✅ {len(image_ids)} Bilder gespeichert")
+                
+            except Exception as e:
+                print(f"      ❌ Fehler beim Speichern der Bilder: {e}")
+                self.logger.error(f"Error storing images: {e}")
+        
+        # Then store chunks with processing_log_id
+        chunk_ids = []
+        if chunks:
+            try:
+                print(f"      📝 Speichere {len(chunks)} Chunks...")
+                
+                # Add processing_log_id to chunks (remove related_images field)
+                db_chunks = []
+                for chunk in chunks:
+                    db_chunk = chunk.copy()
+                    
+                    # Remove id if present (auto-generated by database)
+                    if 'id' in db_chunk:
+                        del db_chunk['id']
+                    
+                    db_chunk['processing_log_id'] = processing_log_id
+                    # Remove the old related_images field - we'll use junction table
+                    db_chunk.pop('related_images', None)
+                    db_chunks.append(db_chunk)
+                
+                # Store chunks in batches
+                batch_size = 100
+                total_batches = (len(db_chunks) + batch_size - 1) // batch_size
+                
+                for i in range(0, len(db_chunks), batch_size):
+                    batch_num = (i // batch_size) + 1
+                    batch = db_chunks[i:i + batch_size]
+                    
+                    print(f"         📦 Batch {batch_num}/{total_batches}: {len(batch)} Chunks")
+                    result = self.supabase.table("chunks").insert(batch).execute()
+                    
+                    if result.data:
+                        for chunk_data in result.data:
+                            chunk_ids.append(chunk_data['id'])
+                
+                print(f"      ✅ Alle {len(chunks)} Chunks erfolgreich gespeichert")
+                
+            except Exception as e:
+                print(f"      ❌ Fehler beim Speichern der Chunks: {e}")
+                self.logger.error(f"Error storing chunks: {e}")
+                raise
+        
+        # Finally, create chunk-image relationships in junction table
+        if chunk_ids and image_page_mapping:
+            try:
+                print(f"      🔗 Erstelle Chunk-Image Verknüpfungen...")
+                
+                chunk_image_relations = []
+                for i, chunk in enumerate(chunks):
+                    if i < len(chunk_ids):
+                        chunk_id = chunk_ids[i]
+                        chunk_page = chunk.get('page_number', 0)
+                        
+                        # Find images on the same page
+                        if chunk_page in image_page_mapping:
+                            for image_id in image_page_mapping[chunk_page]:
+                                chunk_image_relations.append({
+                                    'chunk_id': chunk_id,
+                                    'image_id': image_id
+                                })
+                
+                # Store relations in batches
+                if chunk_image_relations:
+                    batch_size = 200
+                    for i in range(0, len(chunk_image_relations), batch_size):
+                        batch = chunk_image_relations[i:i + batch_size]
+                        self.supabase.table("chunk_images").insert(batch).execute()
+                    
+                    print(f"      ✅ {len(chunk_image_relations)} Chunk-Image Verknüpfungen erstellt")
+                
+            except Exception as e:
+                print(f"      ⚠️  Warnung bei Chunk-Image Verknüpfungen: {e}")
+                self.logger.warning(f"Warning creating chunk-image relations: {e}")
+        
+        self.logger.info(f"Stored {len(chunks)} chunks, {len(image_ids)} images, and {len(chunk_image_relations) if 'chunk_image_relations' in locals() else 0} relations")
         """Store chunks and images in Supabase database"""
         
         print("   💾 Speichere Daten in Supabase...")
@@ -1375,9 +2151,48 @@ class AIEnhancedPDFProcessor:
         if images:
             try:
                 print(f"      🖼️  Speichere {len(images)} Bild-Metadaten...")
-                result = self.supabase.table("images").insert(images).execute()
-                print(f"      ✅ Alle {len(images)} Bild-Metadaten gespeichert")
-                self.logger.info(f"Stored {len(images)} images in database")
+                
+                # Clean images for database compatibility and check duplicates
+                clean_images = []
+                new_images = []
+                
+                for img in images:
+                    clean_img = img.copy()
+                    clean_img.pop('metadata', None)  # Remove metadata field
+                    clean_images.append(clean_img)
+                
+                # Check which images are actually new (batch check for efficiency)
+                new_images = []
+                if clean_images:
+                    # Get all hashes in this batch
+                    image_hashes = [img["image_hash"] for img in clean_images]
+                    
+                    # Single query to check all hashes at once  
+                    existing_hashes_result = self.supabase.table("images").select("image_hash").in_("image_hash", image_hashes).execute()
+                    existing_hashes = {row["image_hash"] for row in existing_hashes_result.data}
+                    
+                    # Filter out existing images
+                    for img in clean_images:
+                        if img["image_hash"] not in existing_hashes:
+                            new_images.append(img)
+                
+                if new_images:
+                    try:
+                        result = self.supabase.table("images").insert(new_images).execute()
+                        print(f"      ✅ {len(new_images)} neue Bild-Metadaten gespeichert ({len(clean_images) - len(new_images)} Duplikate übersprungen)")
+                        self.logger.info(f"Stored {len(new_images)} new images in database")
+                    except Exception as insert_error:
+                        error_str = str(insert_error)
+                        if "duplicate key value violates unique constraint" in error_str or "already exists" in error_str:
+                            print(f"      ⚠️  Images already exist (DB Constraint) - continuing")
+                            self.logger.info(f"Images already exist in database - skipping")
+                        else:
+                            print(f"      ❌ Image insert error: {insert_error}")
+                            self.logger.error(f"Image insert error: {insert_error}")
+                else:
+                    print(f"      ⚠️  Alle {len(clean_images)} Bilder bereits vorhanden (Duplikate übersprungen)")
+                    self.logger.info(f"All {len(clean_images)} images were duplicates")
+                    
             except Exception as e:
                 print(f"      ❌ Fehler beim Speichern der Bild-Metadaten: {e}")
                 self.logger.error(f"Error storing images: {e}")
@@ -1385,31 +2200,44 @@ class AIEnhancedPDFProcessor:
         print("   🎉 Datenbank-Speicherung abgeschlossen!")
     
     def process_pdf(self, file_path: str) -> bool:
-        """Main PDF processing with AI enhancement"""
+        """Main PDF processing with AI enhancement and enhanced logging"""
+        start_time = time.time()
+        processing_log_id = None
+        
         try:
             print(f"🤖 Starting AI-enhanced processing...")
             self.logger.info(f"Starting AI-enhanced processing: {file_path}")
             
             # Parse manufacturer and document type from folder structure
-            manufacturer, document_type = self.parse_file_path(file_path)
+            document_info = self.parse_file_path(file_path)
+            manufacturer = document_info['manufacturer']
+            document_type = document_info['document_type']
             print(f"   🏭 Hersteller: {manufacturer}")
             print(f"   📋 Typ: {document_type}")
+            if document_info.get('document_subtype'):
+                print(f"   📂 Subtyp: {document_info['document_subtype']}")
+            if document_info.get('document_priority', 'normal') != 'normal':
+                print(f"   ⚡ Priorität: {document_info['document_priority']}")
             self.logger.info(f"Detected: {manufacturer} - {document_type}")
             
             # Get file info
             print("   🔍 Berechne Datei-Hash...")
             file_hash = self.get_file_hash(file_path)
+            original_filename = os.path.basename(file_path)
             
-            # Check if already processed
+            # Enhanced duplicate check
             print("   📊 Prüfe Verarbeitungsstatus...")
-            if self.is_already_processed(file_hash):
-                print("   ⏭️  Datei bereits verarbeitet, überspringe...")
+            status_info = self.check_processing_status(file_hash)
+            if status_info['is_processed']:
+                print(f"   ⏭️  Datei bereits verarbeitet ({status_info['chunks_count']} Chunks, {status_info['images_count']} Bilder)")
                 self.logger.info(f"File already processed, skipping: {file_path}")
                 return True
             
-            # Log processing start
+            # Start processing session
             print("   📝 Erstelle Verarbeitungsprotokoll...")
-            self.log_processing_start(file_path, file_hash)
+            processing_log_id = self.start_processing_session(file_path, file_hash, document_info)
+            if not processing_log_id:
+                raise Exception("Failed to start processing session")
             
             # Open PDF
             print("   📄 Öffne PDF-Datei...")
@@ -1417,13 +2245,17 @@ class AIEnhancedPDFProcessor:
             total_pages = len(pdf_document)
             print(f"   📃 Seiten gesamt: {total_pages}")
             
+            # Update progress
+            self.update_processing_progress(processing_log_id, "parsing", 10)
+            
             # Check if this is a large PDF - if so, skip upfront image extraction
             # Large PDFs will handle images in batches during processing
             images = []
             if total_pages <= 1000:
                 # Extract images for smaller PDFs
                 print("   🖼️  Extrahiere Bilder...")
-                images = self.extract_images_from_pdf(pdf_document, file_hash)
+                self.update_processing_progress(processing_log_id, "image_extraction", 20)
+                images = self.extract_images_from_pdf(pdf_document, file_hash, original_filename, document_info)
                 print(f"   ✅ {len(images)} Bilder extrahiert")
                 self.logger.info(f"Extracted {len(images)} images")
             else:
@@ -1436,32 +2268,43 @@ class AIEnhancedPDFProcessor:
             print("      • LLM erkennt Verfahrensschritte")
             print("      • Semantic Boundary Detection aktiv")
             
+            self.update_processing_progress(processing_log_id, "chunking", 40)
             chunks = self.ai_enhanced_chunking_process(
-                pdf_document, manufacturer, document_type, file_path, file_hash
+                pdf_document, document_info, file_path, file_hash
             )
             print(f"   ✅ {len(chunks)} intelligente Chunks erstellt")
             self.logger.info(f"AI-enhanced chunking created {len(chunks)} chunks")
             
             # Store in database
             print("   💾 Speichere in Supabase Datenbank...")
-            self.store_chunks_in_database(chunks, images)
+            self.update_processing_progress(processing_log_id, "storing", 80)
+            self.store_chunks_and_images_enhanced(chunks, images, processing_log_id)
             print("   ✅ Daten erfolgreich gespeichert")
             
-            # Update processing log
-            print("   📊 Aktualisiere Verarbeitungsprotokoll...")
-            self.log_processing_complete(file_hash, len(chunks), len(images))
+            # Complete processing session
+            processing_time = int(time.time() - start_time)
+            self.complete_processing_session(processing_log_id, processing_time)
             
             pdf_document.close()
-            print(f"   🎉 AI-Enhanced Verarbeitung erfolgreich abgeschlossen!")
+            print(f"   🎉 AI-Enhanced Verarbeitung erfolgreich abgeschlossen! ({processing_time}s)")
             self.logger.info(f"Successfully processed with AI enhancement: {file_path}")
             return True
             
         except Exception as e:
             print(f"   ❌ FEHLER: {str(e)}")
             self.logger.error(f"Error in AI-enhanced processing {file_path}: {e}")
-            if 'file_hash' in locals():
-                self.log_processing_error(file_hash, str(e))
-            return False
+            
+            if processing_log_id:
+                try:
+                    # Mark as failed in processing log
+                    self.supabase.table("processing_logs").update({
+                        "status": "failed",
+                        "error_message": str(e),
+                        "updated_at": "now()"
+                    }).eq("id", processing_log_id).execute()
+                except:
+                    pass
+                    
             return False
 
 class PDFWatcher(FileSystemEventHandler):

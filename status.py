@@ -74,14 +74,14 @@ class AISystemMonitor:
             # Get statistics
             chunks_count = self.supabase.table("chunks").select("id", count="exact").execute()
             images_count = self.supabase.table("images").select("id", count="exact").execute()
-            processing_count = self.supabase.table("processing_log").select("id", count="exact").execute()
+            processing_count = self.supabase.table("processing_logs").select("id", count="exact").execute()
             
             print(f"📊 Gesamt Chunks: {chunks_count.count}")
             print(f"📊 Gesamt Images: {images_count.count}")
             print(f"📊 Verarbeitete Dateien: {processing_count.count}")
             
             # Recent activity
-            recent = self.supabase.table("processing_log")\
+            recent = self.supabase.table("processing_logs")\
                 .select("*")\
                 .order("created_at", desc=True)\
                 .limit(5)\
@@ -241,7 +241,7 @@ class AISystemMonitor:
                 
                 # Show recent activity
                 try:
-                    recent = self.supabase.table("processing_log")\
+                    recent = self.supabase.table("processing_logs")\
                         .select("*")\
                         .order("updated_at", desc=True)\
                         .limit(3)\
