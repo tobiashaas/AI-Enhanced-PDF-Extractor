@@ -1,7 +1,7 @@
 {
   "_COMMENT": "===============================================",
   "_TITLE": "AI-Enhanced PDF Extractor - Cross-Platform Config",
-  "_USAGE": "cp config.example.json config.json && python3 performance_optimizer.py",
+  "_USAGE": "Template für Supabase + Cloudflare R2 Setups - Verwende 'python launch.py setup' für geführte Konfiguration",
   "_COMMENT2": "===============================================",
   
   "_AI_MODELS": "Standardisierte AI Modelle - für alle PCs gleich",
@@ -16,16 +16,16 @@
   "min_chunk_size": 200,
   "ollama_base_url": "http://localhost:11434",
   
-  "_DATABASE_CONFIG": "Diese Werte sind für ALLE PCs identisch - NIEMALS ändern!",
-  "supabase_url": "https://xvqsvrxyjjunbsdudfly.supabase.co",
-  "supabase_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2cXN2cnh5amp1bmJzZHVkZmx5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzQ1MTU0OSwiZXhwIjoyMDczMDI3NTQ5fQ.8d_iNbyxkmECM2cTMkabr1KUpAvRiKJ77OFVuAp4fBo",
+  "_DATABASE_CONFIG": "Supabase PostgreSQL Database mit pgvector - Ersetze mit deinen Supabase Credentials",
+  "supabase_url": "https://your-project-ref.supabase.co",
+  "supabase_key": "your_supabase_service_role_key_here",
   
-  "_R2_STORAGE_CONFIG": "Diese Werte sind für ALLE PCs identisch - NIEMALS ändern!",
-  "r2_account_id": "a88f92c913c232559845adb9001a5d14",
-  "r2_access_key_id": "6503ce244c0d5a495b48fe093900ce65",
-  "r2_secret_access_key": "d0da598013ace944c767c8f679d267ac02022ba2bcf297bdb4ff7248562e7816",
-  "r2_bucket_name": "kr-technik-agent",
-  "r2_public_domain_id": "80a63376fddf4b909ed55ee53a401a93",
+  "_STORAGE_CONFIG": "Cloudflare R2 Cloud Storage für Bilder - Ersetze mit deinen R2 Credentials",
+  "r2_account_id": "your_r2_account_id",
+  "r2_access_key_id": "your_r2_access_key_id",
+  "r2_secret_access_key": "your_r2_secret_access_key",
+  "r2_bucket_name": "your-r2-bucket-name",
+  "r2_public_domain_id": "your_r2_public_domain_id",
   
   "_PLATFORM_SPECIFIC": "Diese Werte je nach PC anpassen",
   "documents_path": "./Documents",
@@ -44,10 +44,11 @@
   "gpu_memory_fraction": 0.7,
   
   "_SETUP_GUIDE": {
-    "step_1": "cp config.example.json config.json",
-    "step_2": "Ändere documents_path zu deinem PDF-Ordner",
-    "step_3": "python3 performance_optimizer.py",
-    "step_4": "python3 ai_pdf_processor.py",
-    "wichtig": "Supabase + R2 Config NIEMALS ändern!"
+    "step_1": "Empfohlen: 'python launch.py setup' für geführte Konfiguration",
+    "step_2": "Alternativ: cp config.example.json config.json",
+    "step_3": "Trage deine Supabase URL + Key und R2 Credentials ein",
+    "step_4": "Ändere documents_path zu deinem PDF-Ordner",
+    "step_5": "python launch.py process 'your-file.pdf'",
+    "wichtig": "Echte Credentials eintragen - diese sind nur Platzhalter!"
   }
 }
