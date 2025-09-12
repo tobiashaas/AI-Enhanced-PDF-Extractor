@@ -1,16 +1,3 @@
-# AI-Enhanced PDF Extraction System
-# .gitignore - Excludes sensitive and generated files
-
-# Configuration and secrets
-config.json
-*.env
-.env*
-
-# Logs and temporary files
-logs/
-*.log
-*.tmp
-
 # Python
 __pycache__/
 *.py[cod]
@@ -29,30 +16,32 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
+PIPFILE.lock
 
-# Virtual environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+# Config Files (Security)
+config.json
 
-# IDE
+# Documents
+*.pdf
+*.csv
+*.PDF
+*.CSV
+*.pfdz
+*.PDFZ
+/Documents/*/*.json
+
+# Development
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS generated files
+# OS
 .DS_Store
 .DS_Store?
 ._*
@@ -61,30 +50,24 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
-# Docker
-.dockerignore
+# Logs
+*.log
+logs/
 
-# Ollama models (large files)
-.ollama/
+# Metrics Exports
+metrics_export_*.json
 
-# Processed files cache
-.cache/
-cache/
+# Temporary Files
+tmp/
+temp/
+*.tmp
 
-# Test files
-test_*.pdf
-sample_*.pdf
-
-# Backup files
-*.bak
+# Backup Files
+*_backup.py
+*_old.*
 *.backup
 
-# AI model downloads (optional - could be large)
-models/
-*.bin
-*.safetensors
-
-# Auto-added entries
-*.pyc
-Documents/
-Archive_Removed_Files/
+# Archive Folders
+Archive*/
+Backup*/
+Old*/
