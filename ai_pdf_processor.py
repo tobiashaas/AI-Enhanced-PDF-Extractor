@@ -27,7 +27,6 @@ from watchdog.events import FileSystemEventHandler
 from supabase import create_client
 import boto3
 from botocore.exceptions import ClientError
-from sentence_transformers import SentenceTransformer
 
 # Import refactored modules  
 from r2_storage_client import R2StorageClient, R2Config
@@ -251,7 +250,7 @@ class OllamaClient:
         try:
             payload = {
                 "model": model,
-                "prompt": prompt
+                "input": prompt  # Corrected parameter name for Ollama 0.11.10
             }
             
             # Use new API endpoint (/api/embed) - requires Ollama >= 0.3.0
@@ -263,7 +262,9 @@ class OllamaClient:
             )
             
             response.raise_for_status()
-            return response.json().get('embedding', [])
+            data = response.json()
+            embeddings = data.get('embeddings', [])
+            return embeddings[0] if embeddings else []  # Return first embedding from list
             
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
@@ -648,54 +649,19 @@ class AIEnhancedPDFProcessor:
         self._print_hardware_status()
         
     def _init_embedding_model(self):
-        """Hardware-optimiertes Embedding Model laden - Ollama oder SentenceTransformers"""
-        embedding_provider = getattr(self.config, 'embedding_provider', 'sentence_transformers')
-        model_name = getattr(self.config, 'embedding_model', 'all-MiniLM-L6-v2')
+        """EmbeddingGemma über Ollama laden"""
+        embedding_provider = getattr(self.config, 'embedding_provider', 'ollama')
+        model_name = getattr(self.config, 'embedding_model', 'embeddinggemma')
         
         print(f"   🧠 Lade Embedding Model: {model_name} ({embedding_provider})")
+        print("   ⚡ Ollama EmbeddingGemma (768D) - GPU beschleunigt")
         
-        if embedding_provider == "ollama":
-            # Neues Ollama embeddinggemma Model
-            print("   ⚡ Ollama Embedding Model (embeddinggemma)")
-            return None  # Kein lokales Model nötig, API-basiert
-        
-        # Fallback: SentenceTransformers für kompatibilität
-        print(f"   🔧 SentenceTransformers Fallback: {model_name}")
-        
-        # Apple Silicon Optimierung
-        if getattr(self.config, 'use_metal_acceleration', False):
-            import torch
-            if torch.backends.mps.is_available():
-                print("   ⚡ Metal Performance Shaders für Embeddings aktiv")
-                return SentenceTransformer(model_name, device='mps')
-        
-        # CUDA Optimierung  
-        elif getattr(self.config, 'use_cuda_acceleration', False):
-            import torch
-            if torch.cuda.is_available():
-                print(f"   ⚡ CUDA für Embeddings aktiv (GPU: {torch.cuda.get_device_name()})")
-                return SentenceTransformer(model_name, device='cuda')
-        
-        # CPU Fallback
-        print("   💻 CPU Embeddings (Standard)")
-        return SentenceTransformer(model_name)
+        return None  # Kein lokales Model nötig, API-basiert über Ollama
     
     def generate_chunk_embedding(self, text: str) -> Optional[List[float]]:
-        """Generate embedding using Ollama or SentenceTransformers"""
-        embedding_provider = getattr(self.config, 'embedding_provider', 'sentence_transformers')
-        
-        if embedding_provider == "ollama":
-            # Ollama embeddinggemma API
-            embedding_model = getattr(self.config, 'embedding_model', 'embeddinggemma')
-            return self.ollama.generate_embedding(embedding_model, text)
-        
-        elif self.embedding_model is not None:
-            # SentenceTransformers Fallback
-            return self.embedding_model.encode(text).tolist()
-        
-        else:
-            self.logger.warning("Kein Embedding Model verfügbar")
-            return None
+        """Generate embedding using Ollama EmbeddingGemma"""
+        embedding_model = getattr(self.config, 'embedding_model', 'embeddinggemma')
+        return self.ollama.generate_embedding(embedding_model, text)
     
     def _print_hardware_status(self):
         """Hardware-Status anzeigen"""
