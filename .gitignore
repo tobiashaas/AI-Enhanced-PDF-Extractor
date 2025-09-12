@@ -25,14 +25,18 @@ PIPFILE.lock
 # Config Files (Security)
 config.json
 
-# Documents
+# Documents (Keep structure, exclude content)
 *.pdf
 *.csv
 *.PDF
 *.CSV
 *.pfdz
 *.PDFZ
-/Documents/*/*.json
+Documents/**/*.json
+Documents/**/*.pdf
+Documents/**/*.csv
+Documents/**/*.PDF
+Documents/**/*.CSV
 
 # Development
 .vscode/
