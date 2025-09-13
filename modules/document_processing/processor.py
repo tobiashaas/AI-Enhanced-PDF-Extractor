@@ -12,31 +12,9 @@ import base64
 from io import BytesIO
 from PIL import Image
 import tempfile
-import olla                          # Bild-Daten für die Datenbank vorbereiten
-            db_data = {
-                "source_table": source_table,
-                "source_id": source_id,
-                "file_hash": image_data.get("file_hash", ""),
-                "page_number": image_data.get("page_number", 0),
-                "image_index": image_data.get("image_index", 0),
-                "storage_url": image_data.get("url", ""),
-                "image_type": "photo",  # Standard-Typ
-                "manufacturer": manufacturer,
-                "model": model,
-                "hash": image_data.get("hash", ""),
-                "metadata": {-Daten für die Datenbank vorbereiten
-            db_data = {
-                "source_table": source_table,
-                "source_id": source_id,
-                "file_hash": image_data.get("file_hash", ""),
-                "page_number": image_data.get("page_number", 0),
-                "image_index": image_data.get("image_index", 0),
-                "storage_url": image_data.get("url", ""),
-                "image_type": "photo",  # Standard-Typ
-                "manufacturer": manufacturer,
-                "model": model,
-                "hash": image_data.get("hash", ""),
-                "metadata": { logging
+import ollama
+
+# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -321,6 +299,7 @@ class DocumentProcessor(ABC):
                 "image_type": "photo",  # Standard-Typ
                 "manufacturer": manufacturer,
                 "model": model,
+                "hash": image_data.get("hash", ""),
                 "metadata": {
                     "width": image_data.get("width", 0),
                     "height": image_data.get("height", 0),
@@ -362,6 +341,7 @@ class DocumentProcessor(ABC):
                 "image_type": "photo",  # Standard-Typ
                 "manufacturer": manufacturer,
                 "model": model,
+                "hash": image_data.get("hash", ""),
                 "metadata": {
                     "width": image_data.get("width", 0),
                     "height": image_data.get("height", 0),

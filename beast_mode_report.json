@@ -1,0 +1,18 @@
+{
+  "timestamp": "2025-09-13T18:35:43.552732",
+  "system": "Intel Core Ultra 9 185H + RTX 2000 Ada",
+  "beast_mode_results": {
+    "beast_score": 157.3125,
+    "rating": "\ud83d\udd25\ud83d\udd25\ud83d\udd25 LEGENDARY BEAST \ud83d\udd25\ud83d\udd25\ud83d\udd25",
+    "active_devices": 4,
+    "total_devices": 4,
+    "theoretical_performance": 233.99999999999994,
+    "performance_gain": 133.99999999999994,
+    "configuration": {
+      "workers": 16,
+      "gpu_batch": 200,
+      "npu_batch": 100,
+      "shared_memory": 9.9
+    }
+  }
+}
