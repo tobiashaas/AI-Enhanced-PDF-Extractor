@@ -100,6 +100,20 @@ Bevor Sie beginnen, stellen Sie sicher, dass die folgenden Komponenten auf Ihrem
 
 ## Häufige Probleme und Lösungen
 
+### "Images"-Tabellen-Probleme
+
+Wenn Fehler bezüglich der "images"-Tabelle auftreten:
+
+```cmd
+python fix_images_table.py
+```
+
+Oder führen Sie das SQL-Skript manuell in der Supabase-Konsole aus:
+
+1. Öffnen Sie die Supabase SQL-Editor
+2. Kopieren Sie den Inhalt der Datei 'fix_images_table.sql'
+3. Führen Sie den SQL-Code aus
+
 ### PyMuPDF-Installationsprobleme
 
 Wenn beim Installieren von PyMuPDF Fehler auftreten:
