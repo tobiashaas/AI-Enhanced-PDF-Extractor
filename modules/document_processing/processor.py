@@ -299,7 +299,6 @@ class DocumentProcessor(ABC):
                 "image_type": "photo",  # Standard-Typ
                 "manufacturer": manufacturer,
                 "model": model,
-                "hash": image_data.get("hash", ""),
                 "metadata": {
                     "width": image_data.get("width", 0),
                     "height": image_data.get("height", 0),
@@ -341,7 +340,6 @@ class DocumentProcessor(ABC):
                 "image_type": "photo",  # Standard-Typ
                 "manufacturer": manufacturer,
                 "model": model,
-                "hash": image_data.get("hash", ""),
                 "metadata": {
                     "width": image_data.get("width", 0),
                     "height": image_data.get("height", 0),

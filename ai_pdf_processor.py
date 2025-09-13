@@ -80,8 +80,12 @@ class AIPDFProcessor:
         # Memory-Manager initialisieren
         self.memory_manager = MemoryManager(self.supabase, self.config)
         
+        # R2-Client initialisieren
+        from modules.r2_client import R2Client
+        self.r2_client = R2Client(self.config, self.supabase)
+        
         # Processing-Pipeline initialisieren
-        self.pipeline = ProcessingPipeline(self.supabase, self.embedding_client, self.config)
+        self.pipeline = ProcessingPipeline(self.supabase, self.r2_client, self.embedding_client, self.config)
         
         logger.info("AI PDF Processor initialisiert")
     

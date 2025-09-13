@@ -247,7 +247,7 @@ class R2Client:
             
         try:
             # Alle Einträge mit nicht-leeren hash-Werten holen
-            response = self.supabase.table("images").select("hash, storage_url").not_("hash", "is", "").execute()
+            response = self.supabase.table("images").select("hash, storage_url").neq("hash", "").execute()
             
             if response.data:
                 logger.info(f"Lade {len(response.data)} Bild-Hashes aus der Datenbank")

@@ -95,8 +95,12 @@ class ProcessingPipeline:
             from modules.video_processing.processor import VideoProcessor
             self.video_processor = VideoProcessor()
             logger.info("Video-Prozessor erfolgreich initialisiert")
-        except ImportError:
-            logger.warning("Video-Prozessor nicht verfügbar (Modul nicht gefunden)")
+        except ImportError as e:
+            # Informative Warning mit Hinweis auf Playwright
+            if "playwright" in str(e).lower():
+                logger.info("Video-Prozessor nicht verfügbar (Playwright nicht installiert - nur für Video-Scraping benötigt)")
+            else:
+                logger.warning("Video-Prozessor nicht verfügbar (Modul nicht gefunden)")
     
     def process_document(self, file_path: Path) -> Dict[str, Any]:
         """
