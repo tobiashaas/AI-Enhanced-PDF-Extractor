@@ -1,453 +1,737 @@
-#!/usr/bin/env python3
-"""
-Document Processor Module
-------------------------
-Basisklasse und Implementierungen für alle dokumentspezifischen Verarbeitungsprozesse.
-"""
-
+import uuid
+import uuid
 import os
-from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional
-from pathlib import Path
+import fitz  # PyMuPDF
+import json
 import logging
-from datetime import datetime
-import re
-import hashlib
+import datetime
+from abc import ABC, abstractmethod
+from typing import List, Dict, Any, Optional, Tuple
+import requests
+import base64
+from io import BytesIO
+from PIL import Image
+import tempfile
+import ollama
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class DocumentProcessor(ABC):
-    """Abstrakte Basisklasse für alle Dokumentprozessoren"""
+class EmbeddingClient:
+    """Abstract base class for embedding clients"""
     
-    def __init__(self, supabase_client, embedding_client, config):
-        """
-        Initialisiert den Dokumentprozessor
-        
-        Args:
-            supabase_client: Client für die Supabase-Verbindung
-            embedding_client: Client für das Embedding-Modell
-            config: Konfigurationsobjekt
-        """
-        self.supabase = supabase_client
-        self.embedding_client = embedding_client
-        self.config = config
-        
     @abstractmethod
-    def process_document(self, file_path: Path, file_hash: str, log_id: str) -> bool:
-        """
-        Verarbeitet ein Dokument
-        
-        Args:
-            file_path: Pfad zur Datei
-            file_hash: Hash der Datei
-            log_id: ID des Verarbeitungslogs
-            
-        Returns:
-            bool: True, wenn die Verarbeitung erfolgreich war
-        """
+    def embed_text(self, text: str) -> List[float]:
+        """Generate embeddings for a text string"""
         pass
     
-    def extract_text(self, file_path: Path) -> str:
-        """
-        Extrahiert Text aus einer Datei
-        
-        Args:
-            file_path: Pfad zur Datei
-            
-        Returns:
-            str: Extrahierter Text
-        """
-        raise NotImplementedError("Diese Methode muss in der abgeleiteten Klasse implementiert werden")
-    
-    def extract_chunks(self, text: str) -> List[str]:
-        """
-        Teilt Text in Chunks
-        
-        Args:
-            text: Zu teilender Text
-            
-        Returns:
-            List[str]: Liste von Text-Chunks
-        """
-        if self.config.get("chunking_strategy") == "intelligent":
-            return self._intelligent_chunking(text)
-        else:
-            return self._simple_chunking(text)
-    
-    def _intelligent_chunking(self, text: str) -> List[str]:
-        """
-        Intelligentes Chunking mit semantischen Grenzen
-        
-        Args:
-            text: Zu teilender Text
-            
-        Returns:
-            List[str]: Liste von Chunks
-        """
-        chunks = []
-        max_chunk_size = self.config.get("max_chunk_size", 600)
-        min_chunk_size = self.config.get("min_chunk_size", 200)
-        
-        # Split bei Überschriften und Abschnitten
-        sections = re.split(r'\n\s*#{1,3}\s+|\n\s*[A-Z][A-Z\s]+\n', text)
-        
-        current_chunk = ""
-        for section in sections:
-            if len(current_chunk) + len(section) <= max_chunk_size:
-                current_chunk += section
-            else:
-                if len(current_chunk) >= min_chunk_size:
-                    chunks.append(current_chunk.strip())
-                if len(section) > max_chunk_size:
-                    # Teile zu große Abschnitte weiter
-                    sentences = re.split(r'(?<=[.!?])\s+', section)
-                    current_chunk = ""
-                    for sentence in sentences:
-                        if len(current_chunk) + len(sentence) <= max_chunk_size:
-                            current_chunk += sentence + " "
-                        else:
-                            if len(current_chunk) >= min_chunk_size:
-                                chunks.append(current_chunk.strip())
-                            current_chunk = sentence + " "
-                else:
-                    current_chunk = section
-                    
-        if current_chunk and len(current_chunk) >= min_chunk_size:
-            chunks.append(current_chunk.strip())
-            
-        return chunks
-    
-    def _simple_chunking(self, text: str) -> List[str]:
-        """
-        Einfaches Chunking mit fester Größe
-        
-        Args:
-            text: Zu teilender Text
-            
-        Returns:
-            List[str]: Liste von Chunks
-        """
-        max_chunk_size = self.config.get("max_chunk_size", 600)
-        words = text.split()
-        chunks = []
-        
-        for i in range(0, len(words), max_chunk_size):
-            chunk = ' '.join(words[i:i+max_chunk_size])
-            chunks.append(chunk)
-            
-        return chunks
-    
-    def generate_embeddings(self, chunks: List[str]) -> List[List[float]]:
-        """
-        Generiert Embeddings für Chunks
-        
-        Args:
-            chunks: Liste von Text-Chunks
-            
-        Returns:
-            List[List[float]]: Liste von Embedding-Vektoren
-        """
-        return self.embedding_client.embed_documents(chunks)
-    
-    def extract_version_info(self, text: str, filename: str) -> Dict[str, Any]:
-        """
-        Extrahiert Versionsinformationen aus Text und Dateinamen
-        
-        Args:
-            text: Text, aus dem Versionsinfo extrahiert wird
-            filename: Dateiname, aus dem Versionsinfo extrahiert wird
-            
-        Returns:
-            Dict: Versionsinformationen
-        """
-        version_info = {}
-        
-        # Suche nach Versionsnummern im Format v1.2.3, Version 1.2.3, etc.
-        version_patterns = [
-            r'[vV]ersion\s+(\d+\.\d+\.\d+)',
-            r'[vV](\d+\.\d+\.\d+)',
-            r'Rev(?:ision)?\s+([A-Z])',
-            r'Release\s+(\d{4}-\d{2})'
-        ]
-        
-        for pattern in version_patterns:
-            match = re.search(pattern, text) or re.search(pattern, filename)
-            if match:
-                version = match.group(1)
-                version_info["version"] = version
-                break
-        
-        # Suche nach Datum
-        date_patterns = [
-            r'(\d{4}-\d{2}-\d{2})',
-            r'(\d{2}\.\d{2}\.\d{4})',
-            r'([A-Z][a-z]{2}\s+\d{4})'  # z.B. "Jan 2023"
-        ]
-        
-        for pattern in date_patterns:
-            match = re.search(pattern, text) or re.search(pattern, filename)
-            if match:
-                date_str = match.group(1)
-                version_info["release_date"] = date_str
-                break
-                
-        # Revision/Firmware
-        if "Rev" in text or "Revision" in text:
-            rev_match = re.search(r'Rev(?:ision)?\s+([A-Z0-9]+)', text)
-            if rev_match:
-                version_info["revision"] = rev_match.group(1)
-                
-        return version_info
-    
-    def extract_model_numbers(self, text: str, manufacturer: str) -> List[str]:
-        """
-        Extrahiert Modellnummern aus Text basierend auf Hersteller-Mustern
-        
-        Args:
-            text: Text, aus dem Modellnummern extrahiert werden
-            manufacturer: Hersteller
-            
-        Returns:
-            List[str]: Liste von Modellnummern
-        """
-        models = []
-        
-        # Hersteller-spezifische Muster
-        patterns = {
-            "HP": [
-                r'E\d{5}',  # E50045, E52545
-                r'X\d{3}',   # X580
-                r'M\d{3}',   # M506
-                r'Color\s+LaserJet\s+([A-Z0-9]+)'
-            ],
-            "Konica_Minolta": [
-                r'C\d{4}i?',  # C3350i, C3351
-                r'bizhub\s+([A-Z0-9]+)'
-            ],
-            "Lexmark": [
-                r'CX\d{3}[a-z]?',  # CX963, CX963se
-                r'MX\d{3}[a-z]?'   # MX910
-            ]
-        }
-        
-        # Wende Muster an
-        manufacturer_patterns = patterns.get(manufacturer, [r'[A-Z0-9]{4,}'])
-        for pattern in manufacturer_patterns:
-            matches = re.findall(pattern, text)
-            models.extend(matches)
-            
-        # Entferne Duplikate
-        return list(set(models))
+    @abstractmethod
+    def embed_documents(self, documents: List[str]) -> List[List[float]]:
+        """Generate embeddings for multiple documents"""
+        pass
 
-
-class ServiceManualProcessor(DocumentProcessor):
-    """Prozessor für Service Manuals"""
+class OllamaEmbeddingClient(EmbeddingClient):
+    """Ollama-based embedding client"""
     
-    def process_document(self, file_path: Path, file_hash: str, log_id: str) -> bool:
-        """Verarbeitet ein Service Manual"""
+    def __init__(self, model_name: str = "embeddinggemma"):
+        self.model_name = model_name
+        self.client = ollama
+        # Test connection
         try:
-            # Text extrahieren
-            content = self.extract_text(file_path)
+            self.client.embeddings(model=self.model_name, prompt="test")
+            logger.info(f"Successfully connected to Ollama with model {self.model_name}")
+        except Exception as e:
+            logger.error(f"Failed to connect to Ollama: {str(e)}")
+            raise
+    
+    def embed_text(self, text: str) -> List[float]:
+        """Generate embeddings for a text string using Ollama"""
+        try:
+            response = self.client.embeddings(model=self.model_name, prompt=text)
+            return response["embedding"]
+        except Exception as e:
+            logger.error(f"Error generating embeddings: {str(e)}")
+            return []
+    
+    def embed_documents(self, documents: List[str]) -> List[List[float]]:
+        """Generate embeddings for multiple documents using Ollama"""
+        embeddings = []
+        for doc in documents:
+            embeddings.append(self.embed_text(doc))
+        return embeddings
+
+class DummyEmbeddingClient(EmbeddingClient):
+    """Dummy embedding client for testing"""
+    
+    def __init__(self, dimension: int = 768):
+        self.dimension = dimension
+        logger.info(f"Initialized Dummy Embedding Client with dimension {dimension}")
+    
+    def embed_text(self, text: str) -> List[float]:
+        """Generate dummy embeddings for a text string"""
+        import hashlib
+        import numpy as np
+        
+        # Create a deterministic but dummy embedding based on text hash
+        hash_obj = hashlib.md5(text.encode())
+        hash_int = int(hash_obj.hexdigest(), 16)
+        np.random.seed(hash_int)
+        
+        # Generate a dummy embedding with the specified dimension
+        embedding = np.random.normal(0, 1, self.dimension).tolist()
+        return embedding
+    
+    def embed_documents(self, documents: List[str]) -> List[List[float]]:
+        """Generate dummy embeddings for multiple documents"""
+        return [self.embed_text(doc) for doc in documents]
+
+class DocumentProcessor(ABC):
+    """Base class for document processors"""
+    
+    def __init__(self, supabase_client, r2_client, config: Dict[str, Any]):
+        self.supabase = supabase_client
+        self.r2 = r2_client
+        self.config = config
+        
+        # Initialize embedding client based on configuration
+        embedding_type = config.get("embedding_client", {}).get("type", "ollama")
+        if embedding_type == "ollama":
+            model_name = config.get("embedding_client", {}).get("model", "embeddinggemma")
+            try:
+                self.embedding_client = OllamaEmbeddingClient(model_name)
+            except Exception as e:
+                logger.warning(f"Failed to initialize Ollama embedding client: {e}. Falling back to dummy client.")
+                self.embedding_client = DummyEmbeddingClient()
+        else:
+            logger.info("Using dummy embedding client")
+            self.embedding_client = DummyEmbeddingClient()
+    
+    @abstractmethod
+    def process_document(self, file_path: str, file_hash: str = None, log_id: str = None) -> bool:
+        """Process a document and store its data in the database"""
+        pass
+    
+    def extract_text(self, pdf_document) -> List[Dict[str, Any]]:
+        """Extract text from a PDF document"""
+        pages = []
+        for i, page in enumerate(pdf_document):
+            text = page.get_text()
+            pages.append({
+                "page_number": i + 1,
+                "text": text
+            })
+        return pages
+    
+    def extract_images(self, pdf_document, file_path: str) -> List[Dict[str, Any]]:
+        """Extract images from a PDF document and upload to R2"""
+        images_data = []
+        doc_name = os.path.basename(file_path)
+        
+        for i, page in enumerate(pdf_document):
+            image_list = page.get_images()
             
-            # Hersteller und Modelle erkennen
-            manufacturer, models = self._detect_manufacturer_models(file_path)
+            # No images on this page
+            if not image_list:
+                continue
             
-            # Version extrahieren
-            version_info = self.extract_version_info(content, file_path.name)
-            
-            # In Chunks aufteilen
-            chunks = self.extract_chunks(content)
-            
-            # Embeddings generieren
-            embeddings = self.generate_embeddings(chunks)
-            
-            # Daten speichern
-            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-                # Weitere Felder extrahieren
-                procedure_type = self._detect_procedure_type(chunk)
-                problem_type = self._detect_problem_type(chunk)
-                difficulty = self._detect_difficulty(chunk)
-                tools = self._extract_tools(chunk)
-                safety = self._extract_safety_warnings(chunk)
+            for img_index, img_info in enumerate(image_list):
+                try:
+                    xref = img_info[0]
+                    base_image = pdf_document.extract_image(xref)
+                    
+                    if not base_image:
+                        continue
+                    
+                    image_bytes = base_image["image"]
+                    image_ext = base_image["ext"]
+                    
+                    # Create a unique filename for the image
+                    image_filename = f"{doc_name}_page{i+1}_img{img_index+1}.{image_ext}"
+                    
+                    # Berechne den Hash der Bilddaten für die Deduplizierung
+                    import hashlib
+                    image_hash = hashlib.sha256(image_bytes).hexdigest()
+                    
+                    # Prüfe, ob das Bild bereits hochgeladen wurde
+                    if hasattr(self.r2, 'hash_exists') and self.r2.hash_exists(image_hash):
+                        # Bild bereits vorhanden, hole die URL
+                        r2_url = self.r2.get_url_for_hash(image_hash)
+                        logger.info(f"Bild bereits hochgeladen, verwende vorhandenes Bild: {r2_url}")
+                    else:
+                        # Bild noch nicht hochgeladen, speichere und lade hoch
+                        # Create a temporary file to save the image
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{image_ext}") as tmp_file:
+                            tmp_file.write(image_bytes)
+                            tmp_file_path = tmp_file.name
+                        
+                        # Upload to R2
+                        try:
+                            # BytesIO für die Daten erstellen
+                            image_fileobj = BytesIO(image_bytes)
+                            
+                            # Hochladen mit Hash-Information
+                            if hasattr(self.r2, 'upload_fileobj') and 'image_hash' in self.r2.upload_fileobj.__code__.co_varnames:
+                                # Wenn der R2-Client den Hash-Parameter unterstützt
+                                r2_url = self.r2.upload_fileobj(image_fileobj, image_filename, image_hash=image_hash)
+                            else:
+                                # Fallback für ältere R2-Client-Versionen
+                                r2_url = self.upload_to_r2(tmp_file_path, image_filename)
+                            
+                        finally:
+                            # Clean up temporary file
+                            if os.path.exists(tmp_file_path):
+                                os.unlink(tmp_file_path)
+                    
+                    # Save image metadata
+                    images_data.append({
+                        "page_number": i + 1,
+                        "image_index": img_index + 1,
+                        "filename": image_filename,
+                        "url": r2_url,
+                        "width": base_image.get("width", 0),
+                        "height": base_image.get("height", 0),
+                        "content_type": f"image/{image_ext}",
+                        "hash": image_hash,  # Speichere den Hash in den Metadaten
+                        "storage_url": r2_url  # Storage URL für die Datenbank
+                    })
                 
-                # In DB speichern
-                manual_data = {
-                    "content": chunk,
-                    "file_hash": file_hash,
-                    "page_number": i // 3 + 1,  # Annahme: ca. 3 Chunks pro Seite
-                    "chunk_index": i,
-                    "manufacturer": manufacturer,
-                    "model": models[0] if models else None,  # Hauptmodell
-                    "document_version": version_info.get("version", ""),
-                    "procedure_type": procedure_type,
-                    "problem_type": problem_type,
-                    "difficulty_level": difficulty,
-                    "tools_required": tools,
-                    "safety_warnings": safety,
-                    "embedding": embedding,
-                    "metadata": {
-                        "version_info": version_info,
-                        "compatible_models": models,
-                        "extraction_date": datetime.now().isoformat()
-                    }
+                except Exception as e:
+                    logger.error(f"Error extracting image {img_index} from page {i+1}: {str(e)}")
+        
+        
+        # Speichere die Bilder in der Datenbank (wenn Supabase verfügbar)
+        if hasattr(self, 'supabase') and self.supabase:
+            source_table = "service_manuals"  # Standard-Wert, sollte überschrieben werden
+            source_id = str(uuid.uuid4())  # Generiere eine UUID für die Quelle
+            manufacturer = "unknown"
+            model = "unknown"
+            
+            # Für jedes extrahierte Bild
+            for img_data in images_data:
+                self.store_image_in_db(img_data, source_table, source_id, manufacturer, model)
+                
+        return images_data
+    
+    def upload_to_r2(self, file_path: str, object_name: str) -> str:
+        """Upload a file to R2 and return the URL"""
+        try:
+            with open(file_path, 'rb') as file_data:
+                # Use R2 client to upload file
+                response = self.r2.upload_file(file_path, object_name)
+                
+                # Return the public URL
+                base_url = self.config.get("r2", {}).get("public_url", "")
+                if base_url:
+                    return f"{base_url.rstrip('/')}/{object_name}"
+                return object_name
+        except Exception as e:
+            logger.error(f"Error uploading to R2: {str(e)}")
+            return ""
+    
+    def extract_metadata(self, pdf_document) -> Dict[str, Any]:
+        """Extract metadata from a PDF document"""
+        metadata = pdf_document.metadata
+        if metadata:
+            return {
+                "title": metadata.get("title", ""),
+                "author": metadata.get("author", ""),
+                "subject": metadata.get("subject", ""),
+                "keywords": metadata.get("keywords", ""),
+                "creator": metadata.get("creator", ""),
+                "producer": metadata.get("producer", ""),
+                "creation_date": metadata.get("creationDate", ""),
+                "modification_date": metadata.get("modDate", ""),
+                "page_count": len(pdf_document)
+            }
+        else:
+            return {
+                "page_count": len(pdf_document)
+            }
+    
+    def chunk_text(self, text: str, chunk_size: int = 1000, overlap: int = 200) -> List[str]:
+        """Split text into overlapping chunks"""
+        chunks = []
+        if len(text) <= chunk_size:
+            chunks.append(text)
+        else:
+            start = 0
+            while start < len(text):
+                end = min(start + chunk_size, len(text))
+                # Try to find a natural breaking point (period, newline)
+                if end < len(text):
+                    # Look for the last period or newline in the chunk
+                    last_period = text.rfind('.', start, end)
+                    last_newline = text.rfind('\n', start, end)
+                    break_point = max(last_period, last_newline)
+                    
+                    # If found a natural break point, use it
+                    if break_point > start:
+                        end = break_point + 1  # Include the period or newline
+                
+                # Add the chunk
+                chunks.append(text[start:end])
+                
+                # Move to next chunk with overlap
+                start = end - overlap
+                if start < 0:
+                    start = 0
+        
+        return chunks
+        
+    def store_image_in_db(self, image_data, source_table, source_id, manufacturer, model):
+        """Speichert ein Bild in der Datenbank"""
+        try:
+            # Wenn source_id kein UUID ist, erstelle ein neues
+            try:
+                uuid.UUID(source_id)
+            except (ValueError, TypeError, AttributeError):
+                source_id = str(uuid.uuid4())
+                
+            # Bild-Daten für die Datenbank vorbereiten
+            db_data = {
+                "source_table": source_table,
+                "source_id": source_id,
+                "file_hash": image_data.get("file_hash", ""),
+                "page_number": image_data.get("page_number", 0),
+                "image_index": image_data.get("image_index", 0),
+                "storage_url": image_data.get("url", ""),
+                "image_type": "photo",  # Standard-Typ
+                "manufacturer": manufacturer,
+                "model": model,
+                "hash": image_data.get("hash", ""),
+                "metadata": {
+                    "width": image_data.get("width", 0),
+                    "height": image_data.get("height", 0),
+                    "mime_type": image_data.get("content_type", ""),
+                    "original_format": image_data.get("filename", "").split('.')[-1] if "." in image_data.get("filename", "") else ""
+                }
+            }
+            
+            # In Supabase speichern
+            result = self.supabase.table("images").insert(db_data).execute()
+            
+            if result.data:
+                logger.info(f"Bild in DB gespeichert mit ID: {result.data[0]['id']}")
+                return result.data[0]["id"]
+            return None
+                
+        except Exception as e:
+            logger.error(f"Fehler beim Speichern des Bildes in der Datenbank: {e}")
+            return None
+    
+    
+    def _store_image_in_db_duplicate(self, image_data, source_table, source_id, manufacturer, model):
+        """Speichert ein Bild in der Datenbank - Duplikat"""
+        try:
+            # Wenn source_id kein UUID ist, erstelle ein neues
+            try:
+                uuid.UUID(source_id)
+            except (ValueError, TypeError, AttributeError):
+                source_id = str(uuid.uuid4())
+                
+            # Bild-Daten für die Datenbank vorbereiten
+            db_data = {
+                "source_table": source_table,
+                "source_id": source_id,
+                "file_hash": image_data.get("file_hash", ""),
+                "page_number": image_data.get("page_number", 0),
+                "image_index": image_data.get("image_index", 0),
+                "storage_url": image_data.get("url", ""),
+                "image_type": "photo",  # Standard-Typ
+                "manufacturer": manufacturer,
+                "model": model,
+                "hash": image_data.get("hash", ""),
+                "metadata": {
+                    "width": image_data.get("width", 0),
+                    "height": image_data.get("height", 0),
+                    "mime_type": image_data.get("content_type", ""),
+                    "original_format": image_data.get("filename", "").split('.')[-1] if "." in image_data.get("filename", "") else ""
+                }
+            }
+            
+            # In Supabase speichern
+            result = self.supabase.table("images").insert(db_data).execute()
+            
+            if result.data:
+                return result.data[0]["id"]
+            return None
+                
+        except Exception as e:
+            logger.error(f"Fehler beim Speichern des Bildes in der Datenbank: {e}")
+            return None
+    
+    def generate_embeddings(self, text_chunks: List[str]) -> List[List[float]]:
+        """Generate embeddings for text chunks"""
+        try:
+            # Generate embeddings using the embedding client
+            embeddings = self.embedding_client.embed_documents(text_chunks)
+            return embeddings
+        except Exception as e:
+            logger.error(f"Error generating embeddings: {str(e)}")
+            return [[] for _ in text_chunks]  # Return empty embeddings on error
+    
+    def store_document_data(self, document_data: Dict[str, Any]) -> bool:
+        """Store document data in the database"""
+        try:
+            # Bestimme die Zieltabelle basierend auf dem Dokumenttyp
+            document_type = document_data.get("document_type", "unknown")
+            target_table = document_type + "s" if document_type != "parts_manual" else "parts_catalogs"
+            
+            # Erstelle eine UUID für das Dokument
+            doc_id = str(uuid.uuid4())
+            
+            # Erstelle einen Log-Eintrag in processing_logs
+            try:
+                log_data = {
+                    "file_path": document_data.get("file_path", ""),
+                    "file_hash": document_data.get("file_hash", ""),
+                    "original_filename": os.path.basename(document_data.get("file_path", "")),
+                    "status": "completed",
+                    "document_type": document_type,
+                    "manufacturer": document_data.get("metadata", {}).get("manufacturer", "unknown"),
+                    "model": document_data.get("metadata", {}).get("model", "unknown"),
+                    "document_title": document_data.get("title", ""),
+                    "document_version": document_data.get("metadata", {}).get("document_version", ""),
+                    "chunks_created": len(document_data.get("chunks", [])),
+                    "images_extracted": len(document_data.get("images", [])),
+                    "started_at": datetime.datetime.now().isoformat(),
+                    "completed_at": datetime.datetime.now().isoformat()
                 }
                 
-                self.supabase.table("service_manuals").insert(manual_data).execute()
+                self.supabase.table("processing_logs").insert(log_data).execute()
+                logger.info(f"Processing log für {document_data.get('title', '')} erstellt")
+            except Exception as log_err:
+                logger.warning(f"Fehler beim Erstellen des Processing Logs: {log_err}")
+            
+            # Insert images
+            for image in document_data.get("images", []):
+                self.supabase.table("images").insert(
+                    {
+                        "source_table": document_data.get("document_type", "unknown"),
+                        "source_id": doc_id,
+                        "page_number": image.get("page_number", 0),
+                        "image_index": image.get("image_index", 0),
+                        "storage_url": image.get("url", ""),
+                        "hash": image.get("hash", ""),  # Speichere den Bild-Hash in der DB
+                        "manufacturer": document_data.get("metadata", {}).get("manufacturer", ""),
+                        "model": document_data.get("metadata", {}).get("model", ""),
+                        "metadata": {
+                            "filename": image.get("filename", ""),
+                            "width": image.get("width", 0),
+                            "height": image.get("height", 0),
+                            "content_type": image.get("content_type", "")
+                        }
+                    }
+                ).execute()
+            
+            # Insert chunks with embeddings
+            chunks = document_data.get("chunks", [])
+            embeddings = document_data.get("embeddings", [])
+            
+            # Bestimme die Zieltabelle basierend auf dem Dokumenttyp
+            document_type = document_data.get("document_type", "unknown")
+            
+            # Tabellen-Mapping gemäß Supabase AI Dokumentation
+            table_mapping = {
+                "service_manual": "service_manuals",
+                "bulletin": "bulletins",
+                "cpmd": "cpmd_documents",
+                "parts_manual": "parts_catalog"  # Gemäß Supabase AI für Parts Catalog Chunks
+            }
+            
+            target_table = table_mapping.get(document_type, document_type + "s")
+            logger.info(f"Chunks werden in Tabelle '{target_table}' gespeichert (Dokumenttyp: {document_type})")
+            
+            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                # Skip if embedding is empty (error case)
+                if not embedding:
+                    continue
                 
+                # Bereite die grundlegenden Chunk-Daten vor (für alle Tabellentypen)
+                chunk_data = {
+                    "content": chunk,
+                    "chunk_index": i,
+                    "file_hash": document_data.get("file_hash", ""),
+                    "embedding": embedding,
+                    "manufacturer": document_data.get("metadata", {}).get("manufacturer", ""),
+                    "model": document_data.get("metadata", {}).get("model", ""),
+                    "page_number": i // 5  # Einfache Schätzung der Seitenzahl
+                }
+                
+                # Je nach Ziel-Tabelle spezifische Felder hinzufügen
+                if target_table == "service_manuals":
+                    chunk_data.update({
+                        "document_version": document_data.get("metadata", {}).get("document_version", "")
+                    })
+                elif target_table == "bulletins":
+                    chunk_data.update({
+                        "document_version": document_data.get("metadata", {}).get("document_version", ""),
+                        "models_affected": [] # Sollte ein Array sein, aber im aktuellen Kontext nicht verfügbar
+                    })
+                elif target_table == "cpmd_documents":
+                    chunk_data.update({
+                        "document_version": document_data.get("metadata", {}).get("document_version", ""),
+                        "message_type": "general"
+                    })
+                
+                # In die entsprechende Tabelle einfügen
+                try:
+                    result = self.supabase.table(target_table).insert(chunk_data).execute()
+                    if result.data:
+                        logger.info(f"Chunk {i} in Tabelle {target_table} gespeichert mit ID: {result.data[0].get('id', 'unbekannt')}")
+                    else:
+                        logger.warning(f"Chunk {i} in Tabelle {target_table} gespeichert, aber keine Daten zurückgegeben")
+                except Exception as chunk_err:
+                    logger.error(f"Fehler beim Speichern von Chunk {i} in {target_table}: {chunk_err}")
+            
+            logger.info(f"Successfully stored document data for {document_data.get('title', '')}")
             return True
             
         except Exception as e:
-            logger.error(f"Fehler bei der Verarbeitung des Service Manuals {file_path}: {e}")
+            logger.error(f"Error storing document data: {str(e)}")
             return False
-    
-    def _detect_manufacturer_models(self, file_path: Path):
-        """Erkennt Hersteller und Modelle aus dem Dateipfad"""
-        # Bestimme Hersteller aus Ordnerstruktur
-        parts = file_path.parts
-        
-        # Hersteller aus Ordnerpfad bestimmen
-        manufacturers = ["HP", "Konica_Minolta", "Brother", "Canon", "Epson", 
-                        "Kyocera", "Lexmark", "Oki", "Ricoh", "Samsung", 
-                        "Sharp", "Xerox"]
-        
-        manufacturer = next((m for m in manufacturers if m in parts), "Unknown")
-        
-        # Modelle aus Dateinamen extrahieren
-        models = self.extract_model_numbers(file_path.name, manufacturer)
-        
-        # Wenn keine Modelle im Dateinamen, versuche im Parent-Ordner zu finden
-        if not models and len(parts) > 1:
-            models = self.extract_model_numbers(parts[-2], manufacturer)
-        
-        return manufacturer, models
-    
-    def _detect_procedure_type(self, text: str) -> str:
-        """Erkennt den Verfahrenstyp aus dem Text"""
-        procedure_keywords = {
-            "maintenance": ["maintenance", "wartung", "pflege", "reinigung"],
-            "repair": ["repair", "reparatur", "fix", "troubleshoot", "fehlersuche"],
-            "installation": ["install", "setup", "einrichtung", "konfiguration"],
-            "operation": ["operation", "usage", "verwendung", "bedienung"],
-            "calibration": ["calibration", "kalibrierung", "adjustment", "einstellung"]
-        }
-        
-        text_lower = text.lower()
-        for proc_type, keywords in procedure_keywords.items():
-            if any(keyword in text_lower for keyword in keywords):
-                return proc_type
-        
-        return "general"
-    
-    def _detect_problem_type(self, text: str) -> str:
-        """Erkennt den Problemtyp aus dem Text"""
-        problem_keywords = {
-            "paper_jam": ["paper jam", "papierstau", "jam", "stau"],
-            "print_quality": ["quality", "qualität", "faded", "blurry", "streaks"],
-            "connectivity": ["network", "connection", "verbindung", "wifi", "ethernet"],
-            "error_code": ["error code", "fehlercode", "error", "fehler"],
-            "hardware": ["hardware", "mechanical", "mechanisch", "physical", "physisch"]
-        }
-        
-        text_lower = text.lower()
-        for prob_type, keywords in problem_keywords.items():
-            if any(keyword in text_lower for keyword in keywords):
-                return prob_type
-        
-        return "other"
-    
-    def _detect_difficulty(self, text: str) -> str:
-        """Erkennt den Schwierigkeitsgrad aus dem Text"""
-        difficulty_indicators = {
-            "beginner": ["simple", "easy", "einfach", "basic", "schnell"],
-            "intermediate": ["moderate", "mittel", "normal", "standard"],
-            "advanced": ["complex", "komplex", "advanced", "schwierig", "expert"]
-        }
-        
-        text_lower = text.lower()
-        for level, keywords in difficulty_indicators.items():
-            if any(keyword in text_lower for keyword in keywords):
-                return level
-                
-        # Default basierend auf Textlänge und Komplexität
-        if len(text) > 1000 or "technician" in text_lower or "service personnel" in text_lower:
-            return "advanced"
-        elif len(text) > 500:
-            return "intermediate"
-        else:
-            return "beginner"
-    
-    def _extract_tools(self, text: str) -> List[str]:
-        """Extrahiert benötigte Werkzeuge aus dem Text"""
-        tools = []
-        tool_keywords = [
-            "screwdriver", "schraubendreher", 
-            "pliers", "zange", 
-            "tweezers", "pinzette",
-            "brush", "bürste",
-            "alcohol", "alkohol",
-            "tool", "werkzeug",
-            "gloves", "handschuhe"
-        ]
-        
-        text_lower = text.lower()
-        for tool in tool_keywords:
-            if tool in text_lower:
-                tools.append(tool)
-                
-        return tools
-    
-    def _extract_safety_warnings(self, text: str) -> List[str]:
-        """Extrahiert Sicherheitshinweise aus dem Text"""
-        warnings = []
-        warning_patterns = [
-            r'(?:Warning|Warnung|Caution|Achtung):\s*([^.!?]+[.!?])',
-            r'(?:Warning|Warnung|Caution|Achtung)[!:]\s*([^.!?]+[.!?])'
-        ]
-        
-        for pattern in warning_patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            warnings.extend(matches)
-            
-        return [warning.strip() for warning in warnings]
 
+class ServiceManualProcessor(DocumentProcessor):
+    """Processor for service manuals"""
+    
+    def process_document(self, file_path: str, file_hash: str = None, log_id: str = None) -> bool:
+        """Process a service manual document"""
+        try:
+            # Open the PDF document
+            pdf_document = fitz.open(file_path)
+            
+            # Extract data
+            pages_data = self.extract_text(pdf_document)
+            images_data = self.extract_images(pdf_document, file_path)
+            metadata = self.extract_metadata(pdf_document)
+            
+            # Combine all text for chunking
+            all_text = ""
+            for page in pages_data:
+                all_text += page["text"] + " "
+            
+            # Chunk the text
+            chunk_size = self.config.get("processing", {}).get("chunk_size", 1000)
+            overlap = self.config.get("processing", {}).get("chunk_overlap", 200)
+            chunks = self.chunk_text(all_text, chunk_size, overlap)
+            
+            # Generate embeddings
+            embeddings = self.generate_embeddings(chunks)
+            
+            # Prepare document data
+            document_data = {
+                "title": os.path.basename(file_path),
+                "file_path": file_path,
+                "document_type": "service_manual",
+                "metadata": metadata,
+                "pages": pages_data,
+                "images": images_data,
+                "chunks": chunks,
+                "embeddings": embeddings,
+                "file_hash": file_hash
+            }
+            
+            # Store in database
+            success = self.store_document_data(document_data)
+            
+            # Close the PDF document
+            pdf_document.close()
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error processing service manual {file_path}: {str(e)}")
+            return False
+
+class PartsManualProcessor(DocumentProcessor):
+    """Processor for parts manuals"""
+    
+    def process_document(self, file_path: str, file_hash: str = None, log_id: str = None) -> bool:
+        """Process a parts manual document"""
+        try:
+            # Open the PDF document
+            pdf_document = fitz.open(file_path)
+            
+            # Extract data
+            pages_data = self.extract_text(pdf_document)
+            images_data = self.extract_images(pdf_document, file_path)
+            metadata = self.extract_metadata(pdf_document)
+            
+            # Look for associated CSV file
+            base_name = os.path.splitext(file_path)[0]
+            csv_file = f"{base_name}.csv"
+            parts_data = []
+            
+            if os.path.exists(csv_file):
+                # Process CSV data if exists
+                # This would typically contain structured parts data
+                import csv
+                with open(csv_file, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        parts_data.append(row)
+                
+                # Add parts data to metadata
+                metadata["parts_data"] = parts_data
+            
+            # Combine all text for chunking
+            all_text = ""
+            for page in pages_data:
+                all_text += page["text"] + " "
+            
+            # Chunk the text
+            chunk_size = self.config.get("processing", {}).get("chunk_size", 1000)
+            overlap = self.config.get("processing", {}).get("chunk_overlap", 200)
+            chunks = self.chunk_text(all_text, chunk_size, overlap)
+            
+            # Generate embeddings
+            embeddings = self.generate_embeddings(chunks)
+            
+            # Prepare document data
+            document_data = {
+                "title": os.path.basename(file_path),
+                "file_path": file_path,
+                "document_type": "parts_manual",
+                "metadata": metadata,
+                "pages": pages_data,
+                "images": images_data,
+                "chunks": chunks,
+                "embeddings": embeddings,
+                "file_hash": file_hash
+            }
+            
+            # Store in database
+            success = self.store_document_data(document_data)
+            
+            # Close the PDF document
+            pdf_document.close()
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error processing parts manual {file_path}: {str(e)}")
+            return False
 
 class BulletinProcessor(DocumentProcessor):
-    """Prozessor für Bulletins"""
+    """Processor for bulletins"""
     
-    def process_document(self, file_path: Path, file_hash: str, log_id: str) -> bool:
-        """Verarbeitet ein Bulletin"""
+    def process_document(self, file_path: str, file_hash: str = None, log_id: str = None) -> bool:
+        """Process a bulletin document"""
         try:
-            # Implementation ähnlich wie bei ServiceManualProcessor
-            # Bulletin-spezifische Extraktion
-            pass
+            # Open the PDF document
+            pdf_document = fitz.open(file_path)
+            
+            # Extract data
+            pages_data = self.extract_text(pdf_document)
+            images_data = self.extract_images(pdf_document, file_path)
+            metadata = self.extract_metadata(pdf_document)
+            
+            # Combine all text for chunking
+            all_text = ""
+            for page in pages_data:
+                all_text += page["text"] + " "
+            
+            # Chunk the text
+            chunk_size = self.config.get("processing", {}).get("chunk_size", 1000)
+            overlap = self.config.get("processing", {}).get("chunk_overlap", 200)
+            chunks = self.chunk_text(all_text, chunk_size, overlap)
+            
+            # Generate embeddings
+            embeddings = self.generate_embeddings(chunks)
+            
+            # Prepare document data
+            document_data = {
+                "title": os.path.basename(file_path),
+                "file_path": file_path,
+                "document_type": "bulletin",
+                "metadata": metadata,
+                "pages": pages_data,
+                "images": images_data,
+                "chunks": chunks,
+                "embeddings": embeddings,
+                "file_hash": file_hash
+            }
+            
+            # Store in database
+            success = self.store_document_data(document_data)
+            
+            # Close the PDF document
+            pdf_document.close()
+            
+            return success
+            
         except Exception as e:
-            logger.error(f"Fehler bei der Verarbeitung des Bulletins {file_path}: {e}")
+            logger.error(f"Error processing bulletin {file_path}: {str(e)}")
             return False
-
-
-class PartsCatalogProcessor(DocumentProcessor):
-    """Prozessor für Teilekataloge"""
-    
-    def process_document(self, file_path: Path, file_hash: str, log_id: str) -> bool:
-        """Verarbeitet einen Teilekatalog"""
-        try:
-            # Implementation ähnlich wie bei ServiceManualProcessor
-            # Teilekatalog-spezifische Extraktion mit CSV-Pairing
-            pass
-        except Exception as e:
-            logger.error(f"Fehler bei der Verarbeitung des Teilekatalogs {file_path}: {e}")
-            return False
-
 
 class CPMDProcessor(DocumentProcessor):
-    """Prozessor für HP Control Panel Message Documents"""
+    """Processor for CPMD documents"""
     
-    def process_document(self, file_path: Path, file_hash: str, log_id: str) -> bool:
-        """Verarbeitet ein CPMD-Dokument"""
+    def process_document(self, file_path: str, file_hash: str = None, log_id: str = None) -> bool:
+        """Process a CPMD document"""
         try:
-            # Implementation ähnlich wie bei ServiceManualProcessor
-            # CPMD-spezifische Extraktion (Error Codes etc.)
-            pass
+            # Open the PDF document
+            pdf_document = fitz.open(file_path)
+            
+            # Extract data
+            pages_data = self.extract_text(pdf_document)
+            images_data = self.extract_images(pdf_document, file_path)
+            metadata = self.extract_metadata(pdf_document)
+            
+            # Combine all text for chunking
+            all_text = ""
+            for page in pages_data:
+                all_text += page["text"] + " "
+            
+            # Chunk the text
+            chunk_size = self.config.get("processing", {}).get("chunk_size", 1000)
+            overlap = self.config.get("processing", {}).get("chunk_overlap", 200)
+            chunks = self.chunk_text(all_text, chunk_size, overlap)
+            
+            # Generate embeddings
+            embeddings = self.generate_embeddings(chunks)
+            
+            # Prepare document data
+            document_data = {
+                "title": os.path.basename(file_path),
+                "file_path": file_path,
+                "document_type": "cpmd",
+                "metadata": metadata,
+                "pages": pages_data,
+                "images": images_data,
+                "chunks": chunks,
+                "embeddings": embeddings,
+                "file_hash": file_hash
+            }
+            
+            # Store in database
+            success = self.store_document_data(document_data)
+            
+            # Close the PDF document
+            pdf_document.close()
+            
+            return success
+            
         except Exception as e:
-            logger.error(f"Fehler bei der Verarbeitung des CPMD-Dokuments {file_path}: {e}")
+            logger.error(f"Error processing CPMD document {file_path}: {str(e)}")
             return False
+
+class DocumentProcessorFactory:
+    """Factory for creating document processors"""
+    
+    @staticmethod
+    def create_processor(document_type: str, supabase_client, r2_client, config: Dict[str, Any]) -> DocumentProcessor:
+        """Create a document processor based on document type"""
+        if document_type == "service_manual":
+            return ServiceManualProcessor(supabase_client, r2_client, config)
+        elif document_type == "parts_manual":
+            return PartsManualProcessor(supabase_client, r2_client, config)
+        elif document_type == "bulletin":
+            return BulletinProcessor(supabase_client, r2_client, config)
+        elif document_type == "cpmd":
+            return CPMDProcessor(supabase_client, r2_client, config)
+        else:
+            # Default to service manual processor
+            logger.warning(f"Unknown document type: {document_type}. Using ServiceManualProcessor as default.")
+            return ServiceManualProcessor(supabase_client, r2_client, config)

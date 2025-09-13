@@ -16,7 +16,7 @@ from datetime import datetime
 import time
 
 # Import der anderen Module
-from modules.document_processing.processor import ServiceManualProcessor, BulletinProcessor, PartsCatalogProcessor, CPMDProcessor
+from modules.document_processing.processor import ServiceManualProcessor, BulletinProcessor, PartsManualProcessor, CPMDProcessor
 from modules.image_processing.processor import ImageProcessor
 from modules.parts_management.processor import PartsManager
 
@@ -25,16 +25,18 @@ logger = logging.getLogger(__name__)
 class ProcessingPipeline:
     """Zentrale Verarbeitungspipeline für alle Dokumente"""
     
-    def __init__(self, supabase_client, embedding_client, config):
+    def __init__(self, supabase_client, r2_client, embedding_client, config):
         """
         Initialisiert die Verarbeitungspipeline
         
         Args:
             supabase_client: Client für die Supabase-Verbindung
+            r2_client: Client für R2 Cloud Storage
             embedding_client: Client für Embeddings
             config: Konfigurationsobjekt
         """
         self.supabase = supabase_client
+        self.r2_client = r2_client
         self.embedding_client = embedding_client
         self.config = config
         
@@ -62,19 +64,19 @@ class ProcessingPipeline:
         """Initialisiert alle Dokumentprozessoren"""
         # Dokument-Prozessoren
         self.service_manual_processor = ServiceManualProcessor(
-            self.supabase, self.embedding_client, self.config
+            self.supabase, self.r2_client, self.config
         )
         
         self.bulletin_processor = BulletinProcessor(
-            self.supabase, self.embedding_client, self.config
+            self.supabase, self.r2_client, self.config
         )
         
-        self.parts_catalog_processor = PartsCatalogProcessor(
-            self.supabase, self.embedding_client, self.config
+        self.parts_catalog_processor = PartsManualProcessor(
+            self.supabase, self.r2_client, self.config
         )
         
         self.cpmd_processor = CPMDProcessor(
-            self.supabase, self.embedding_client, self.config
+            self.supabase, self.r2_client, self.config
         )
         
         # Bild-Prozessor
@@ -326,21 +328,35 @@ class ProcessingPipeline:
         Returns:
             str: ID des Log-Eintrags
         """
-        result = self.supabase.table("processing_logs").insert({
-            "file_path": str(file_path),
-            "file_hash": file_hash,
-            "original_filename": file_path.name,
-            "status": "processing",
-            "processing_stage": "initialized",
-            "progress_percentage": 0,
-            "document_type": doc_type,
-            "started_at": datetime.now().isoformat()
-        }).execute()
+        # Prüfen, ob ein Eintrag existiert und ggf. löschen
+        try:
+            existing = self.supabase.table("processing_logs").select("id").eq("file_hash", file_hash).execute()
+            if existing.data:
+                logger.info(f"Bestehenden Log-Eintrag für {file_path} gefunden, lösche und erstelle neu")
+                self.supabase.table("processing_logs").delete().eq("file_hash", file_hash).execute()
+        except Exception as e:
+            logger.warning(f"Fehler beim Prüfen auf bestehenden Log-Eintrag: {e}")
         
-        if result.data:
-            return result.data[0]["id"]
-        else:
-            logger.warning(f"Konnte keinen Log-Eintrag erstellen für {file_path}")
+        # Neuen Eintrag erstellen
+        try:
+            result = self.supabase.table("processing_logs").insert({
+                "file_path": str(file_path),
+                "file_hash": file_hash,
+                "original_filename": file_path.name,
+                "status": "processing",
+                "processing_stage": "initialized",
+                "progress_percentage": 0,
+                "document_type": doc_type,
+                "started_at": datetime.now().isoformat()
+            }).execute()
+            
+            if result.data:
+                return result.data[0]["id"]
+            else:
+                logger.warning(f"Konnte keinen Log-Eintrag erstellen für {file_path}")
+                return None
+        except Exception as e:
+            logger.error(f"Fehler beim Erstellen des Log-Eintrags: {e}")
             return None
     
     def _update_processing_log(self, log_id: str, status: str, stage: str, 
