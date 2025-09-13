@@ -1,53 +1,73 @@
-# AI-Enhanced PDF Extractor - Beta
+# AI-Enhanced PDF Processing System
 
-🚀 **Optimized AI Agent Ready Version**
+🚀 **Modular Document Processing Pipeline**
 
-## 🎯 Features (Beta)
+## 🎯 Features
 
-### ✨ **Optimized Parts Catalog**
-- **No Price/Availability Dependencies** - Clean AI Agent Integration
-- **Part Number as Unique Reference** - Eliminates 99.7% duplicates  
-- **Quality-based Prioritization** - Smart ranking system
-- **Model Compatibility Support** - Multi-model parts matching
+### 📄 **Advanced Document Processing**
+- **Multi-Document Type Support** - Service manuals, bulletins, parts catalogs, CPMD
+- **Automatic Version Extraction** - Smart detection of version information
+- **Model Compatibility Arrays** - Track multi-model support in documents
+- **Intelligent Chunking** - Smart text segmentation with semantic boundaries
 
-### 🏎️ **Performance Optimizations**
-- **8 Database Indices** - Sub-second query performance
-- **Vector Search Ready** - Semantic similarity matching
-- **Optimized Views** - AI Agent specific database views
-- **Smart Chunking** - Intelligent text segmentation
+### 🖼️ **ZERO Conversion Image Processing**
+- **Original Format Preservation** - No quality loss in extracted images
+- **Vector Graphics Support** - Native handling of SVG, EPS, AI files
+- **Vision AI Analysis** - Optional AI enrichment for images
+- **R2/S3 Storage Integration** - Efficient cloud storage
 
-### 🤖 **AI Agent Ready**
-- **Helper Functions** - `parts_helper_optimized.py`
-- **Optimized Search** - Part number and fuzzy matching
-- **Quality Analytics** - Data completeness scoring
-- **Clean API** - No legacy dependencies
+### 🔧 **Advanced Parts Management**
+- **Part Number as Unique Reference** - Per-manufacturer uniqueness
+- **Model Compatibility Tracking** - Multi-model parts relationships
+- **Parts Categories** - Organized parts database
+- **CSV Processing** - Automated parts catalog imports
+
+### 🎬 **Video Tutorial Integration**
+- **CSV Import** - Standardized video metadata
+- **Optional Scraping** - Automated collection from manufacturer sites
+- **Embedding Integration** - Full-text search in transcripts
+
+### � **Chat Memory System**
+- **Technical Cheat Sheets** - Quick reference information
+- **Project Master Plans** - Architecture documentation
+- **Context-Aware AI** - Improved assistant responses
 
 ## 🚀 Quick Start
 
-### 1. Cross-Platform Setup (Windows/Linux/macOS)
+### 1. Setup Configuration
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run interactive setup wizard (all platforms)
-python3 setup_wizard.py
+# Edit the configuration file with your credentials
+cp config.example.json config.json
+nano config.json  # Or use any text editor
 ```
 
-**Platform Features:**
-- 🍎 **macOS**: Apple Silicon Metal acceleration
-- 🐧 **Linux**: CUDA GPU acceleration  
-- 🪟 **Windows**: DirectML support
-- 🐳 **Docker**: Cross-platform containerized deployment
-
-### 2. Database Setup & Optimization
+### 2. Install Dependencies
 ```bash
-# Apply AI Agent performance optimizations
-python3 -c "
-import json
-with open('ai_agent_safe_optimization.sql', 'r') as f:
-    sql = f.read()
-# Execute in Supabase Dashboard SQL Editor
-print('Copy this SQL to Supabase Dashboard:')
+# Install all required packages
+pip install -r requirements.txt
+```
+
+### 3. Check Ollama
+```bash
+# Ensure Ollama is running (version 0.11.10 or higher)
+ollama --version
+
+# Install required models
+ollama pull embeddinggemma
+ollama pull llava:7b  # Optional for vision analysis
+ollama pull llama3.1:8b  # Optional for text processing
+```
+
+### 4. Run the processor
+```bash
+# Process all documents in the Documents directory
+python ai_pdf_processor.py --process-all
+
+# Process a single file
+python ai_pdf_processor.py --process-file path/to/file.pdf
+```
+
+## 🗂️ Modular Architecture
 print(sql)
 "
 ```
@@ -333,3 +353,63 @@ python3 setup_wizard.py
 - Platform-specific dependencies and paths
 
 **Built for optimal AI Agent performance with clean, dependency-free architecture.**
+```
+modules/
+├── chat_memory/            # Memory management for AI agent
+│   ├── processor.py        # Memory manager implementation
+│   └── README.md           # Module documentation
+│
+├── document_processing/    # Document type-specific processors
+│   ├── processor.py        # Document processor implementations
+│   └── README.md           # Module documentation
+│
+├── image_processing/       # ZERO CONVERSION image handling
+│   ├── processor.py        # Image processor implementation
+│   └── README.md           # Module documentation
+│
+├── parts_management/       # Parts catalog processing
+│   ├── processor.py        # Parts manager implementation
+│   └── README.md           # Module documentation
+│
+├── processing_pipeline/    # Processing orchestration
+│   ├── processor.py        # Pipeline implementation
+│   └── README.md           # Module documentation
+│
+└── video_processing/       # Video metadata processing
+    ├── processor.py        # Video processor implementation
+    └── README.md           # Module documentation
+```
+
+## 📊 Database Structure
+
+The system uses a PostgreSQL database with 10 tables:
+
+1. `service_manuals` - Service manual content chunks
+2. `bulletins` - Technical bulletins content chunks
+3. `parts_catalogs` - Parts catalog content chunks
+4. `cpmd_documents` - Control panel message documents
+5. `video_tutorials` - Video tutorial metadata
+6. `images` - Extracted images with metadata
+7. `parts_catalog` - Master parts database
+8. `parts_model_compatibility` - Parts-model relationships
+9. `n8n_chat_memory` - AI chat memory system
+10. `processing_logs` - Document processing logs
+
+All tables feature vector search using EmbeddingGemma (768-dimensional).
+
+## 📝 Document Format Support
+
+The system processes documents from the following directories:
+
+- `Documents/Service_Manuals/` - Repair and maintenance manuals
+- `Documents/Bulletins/` - Technical bulletins and updates
+- `Documents/Parts_Catalogs/` - Parts catalogs and price lists
+- `Documents/CPMD/` - Control panel message documents
+- `Documents/Video_Tutorials/` - Video tutorial metadata (CSV)
+
+## 📚 Technical Resources
+
+- [DATABASE_STRUCTURE_GUIDE.md](./DATABASE_STRUCTURE_GUIDE.md) - Complete database schema
+- [TECHNICAL_REQUIREMENTS.md](./TECHNICAL_REQUIREMENTS.md) - System requirements
+- [MEMORY/TECHNICAL_CHEAT_SHEET.md](./MEMORY/TECHNICAL_CHEAT_SHEET.md) - Technical reference
+- [MEMORY/PROJECT_MASTER_PLAN.md](./MEMORY/PROJECT_MASTER_PLAN.md) - Architecture plan

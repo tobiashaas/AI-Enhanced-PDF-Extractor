@@ -1,0 +1,48 @@
+{
+  "_COMMENT": "AI-Enhanced PDF Processing System - Configuration Template",
+  
+  "supabase": {
+    "url": "YOUR_SUPABASE_URL",
+    "key": "YOUR_SUPABASE_KEY"
+  },
+  
+  "embedding": {
+    "model": "embeddinggemma",
+    "dimensions": 768,
+    "provider": "ollama"
+  },
+  
+  "processing": {
+    "chunk_size": 500,
+    "chunk_overlap": 100,
+    "use_vision_analysis": true,
+    "use_semantic_boundaries": true,
+    "chunking_strategy": "intelligent",
+    "max_chunk_size": 600,
+    "min_chunk_size": 200
+  },
+  
+  "r2": {
+    "account_id": "YOUR_R2_ACCOUNT_ID",
+    "access_key_id": "YOUR_R2_ACCESS_KEY",
+    "secret_access_key": "YOUR_R2_SECRET_KEY",
+    "bucket_name": "pdf-extractor-images",
+    "endpoint": "https://{account_id}.r2.cloudflarestorage.com",
+    "public_domain_id": "YOUR_PUBLIC_DOMAIN_ID"
+  },
+  
+  "ollama": {
+    "base_url": "http://localhost:11434",
+    "vision_model": "llava:7b",
+    "text_model": "llama3.1:8b",
+    "embedding_model": "embeddinggemma",
+    "parallel_workers": 4,
+    "batch_size": 100,
+    "use_gpu_acceleration": true,
+    "gpu_memory_fraction": 0.7
+  },
+  
+  "memory": {
+    "memory_dir": "MEMORY"
+  }
+}
