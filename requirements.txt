@@ -1,47 +1,45 @@
-# Core Dependencies# AI-Enhanced PDF Extraction System Requirements
+# AI-Enhanced PDF Extraction System Requirements
 
-supabase~=1.0.3# Optimiert für Hardware-Beschleunigung (Apple Silicon, NVIDIA, CPU)
+# Core Dependencies
+PyMuPDF==1.23.26
+Pillow==10.4.0
+numpy==1.26.4
+pandas==2.0.3
+python-dotenv==1.0.1
 
-PyMuPDF~=1.23.3
+# Database & Cloud Storage
+supabase==2.8.0
+psycopg2-binary==2.9.9
+boto3==1.34.162
 
-requests~=2.31.0# Core PDF Processing
-
-numpy~=1.24.3PyMuPDF==1.23.26
-
-pandas~=2.0.3Pillow==10.4.0
-
-pillow~=10.0.0watchdog==4.0.1
-
-python-dotenv~=1.0.0
-
-# AI & Machine Learning (Hardware-optimiert)
-
-# Optional Dependenciessentence-transformers==2.7.0
-
-playwright~=1.37.0  # For video scrapingtorch>=2.0.0
-
-boto3~=1.28.15      # For R2/S3 storagetorchvision>=0.15.0
-
-watchdog~=3.0.0     # For file system monitoringnumpy==1.26.4
-
-
-
-# Development Dependencies# Database & Cloud Storage  
-
-pytest~=7.4.0supabase==2.8.0
-
-black~=23.7.0psycopg2-binary==2.9.9
-
-isort~=5.12.0boto3==1.34.162
+# AI & Machine Learning
+sentence-transformers==2.7.0
+torch>=2.0.0
+torchvision>=0.15.0
+ollama==0.1.27
 
 # HTTP & Networking
 requests==2.31.0
 
 # System Utilities
 psutil>=5.9.0
-python-dotenv==1.0.1
+watchdog==4.0.1
+
+# Optional Dependencies
+playwright>=1.37.0  # For video scraping
+
+# Development Dependencies
+pytest>=7.4.0
+black>=23.7.0
+isort>=5.12.0
 
 # Hardware Acceleration Notes:
 # - Apple Silicon: Metal Performance Shaders (automatisch aktiviert)
 # - NVIDIA GPUs: Install mit --index-url https://download.pytorch.org/whl/cu118
 # - Intel/AMD: Optimierte CPU-Bibliotheken (automatisch)
+
+# Windows-spezifische Hinweise:
+# - Falls Probleme mit psycopg2-binary auftreten: pip install psycopg2-binary --no-binary :all:
+# - Falls PyMuPDF Probleme macht, installieren Sie zuerst Visual C++ Build Tools:
+#   https://visualstudio.microsoft.com/visual-cpp-build-tools/
+# - Ollama benötigt WSL oder Docker unter Windows

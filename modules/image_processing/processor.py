@@ -85,8 +85,10 @@ class ImageProcessor:
         """
         extracted_image_ids = []
         
-        # Temporäres Verzeichnis für Bildextraktion
-        temp_dir = Path(f"/tmp/pdf_images_{file_hash}")
+        # Temporäres Verzeichnis für Bildextraktion - plattformunabhängig
+        import tempfile
+        temp_base = tempfile.gettempdir()
+        temp_dir = Path(temp_base) / f"pdf_images_{file_hash}"
         os.makedirs(temp_dir, exist_ok=True)
         
         try:
