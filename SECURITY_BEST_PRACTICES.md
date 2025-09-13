@@ -2,20 +2,25 @@
 
 ## Eingerichtete Sicherheitsmaßnahmen
 
-1. **Umgebungsvariablen statt hartcodierter Werte**
-   - Verwendung von `.env` Dateien für sensible Daten
-   - Verwendung von `python-dotenv` zur einfachen Verwaltung
-   - Priorisierung: Umgebungsvariablen > Konfigurationsdatei > Standardwerte
+1. **Ausschließlich Umgebungsvariablen für sensible Daten**
+   - Verwendung von `.env` Dateien für alle sensiblen Daten
+   - Integration von `python-dotenv` zur einfachen Verwaltung
+   - Keine sensiblen Daten in Konfigurationsdateien
 
-2. **Gitignore-Konfiguration**
+2. **Strikte Trennung**
+   - `config.json`: Nur nicht-sensible Konfigurationswerte und Standardeinstellungen
+   - `.env`: Alle sensiblen Daten (API-Schlüssel, Zugangsdaten, URLs)
+   - Konfigurationsdateien ohne Anmeldeinformationen im Repository
+
+3. **Gitignore-Konfiguration**
    - Ausschluss von `.env` Dateien aus Git
    - Bereitstellung von `.env.example` als Template
-   - Konfigurationsdateien ohne sensible Daten in Git
+   - Ausschluss von `config.json` mit sensiblen Daten
 
-3. **Konfigurationsmanagement**
+4. **Konfigurationsmanagement**
    - Zentrale Konfigurationsverwaltung
    - Hierarchische Struktur für bessere Organisation
-   - Keine hartcodierten Secrets im Code
+   - Kein Fallback auf weniger sichere Konfigurationsmethoden
 
 ## Anleitung für neue Entwickler
 

@@ -61,7 +61,15 @@ class AIPDFProcessor:
         """
         self.config = self._load_config(config_path)
         self.base_dir = Path(os.path.dirname(os.path.abspath(__file__)))
-        self.documents_dir = self.base_dir / "Documents"
+        
+        # Dokumente-Verzeichnis aus Konfiguration oder Umgebungsvariablen
+        documents_path = os.environ.get("DOCUMENTS_PATH") or self.config.get("documents_path", "./Documents")
+        
+        # Wenn relativer Pfad, dann vom Basisverzeichnis ausgehen
+        if documents_path.startswith("./"):
+            self.documents_dir = self.base_dir / documents_path[2:]
+        else:
+            self.documents_dir = Path(documents_path)
         
         # Supabase-Verbindung initialisieren
         self.supabase = self._init_supabase()
@@ -94,32 +102,38 @@ class AIPDFProcessor:
                 return config
         except Exception as e:
             logger.error(f"Fehler beim Laden der Konfiguration: {e}")
-            # Standard-Konfiguration mit Umgebungsvariablen verwenden
+            # Standard-Konfiguration mit Standardwerten
+            # Sensible Daten müssen immer aus Umgebungsvariablen kommen
             return {
-                "supabase": {
-                    "url": os.environ.get("SUPABASE_URL", ""),
-                    "key": os.environ.get("SUPABASE_KEY", "")
-                },
                 "embedding": {
-                    "model": os.environ.get("EMBEDDING_MODEL", "embeddinggemma"),
+                    "model": "embeddinggemma",
                     "dimensions": 768
                 },
                 "processing": {
                     "chunk_size": 500,
                     "chunk_overlap": 100,
-                    "use_vision_analysis": False
-                },
-                "r2": {
-                    "account_id": os.environ.get("R2_ACCOUNT_ID", ""),
-                    "access_key_id": os.environ.get("R2_ACCESS_KEY_ID", ""),
-                    "secret_access_key": os.environ.get("R2_SECRET_ACCESS_KEY", ""),
-                    "bucket_name": os.environ.get("R2_BUCKET_NAME", ""),
-                    "endpoint": f"https://{os.environ.get('R2_ACCOUNT_ID', '')}.r2.cloudflarestorage.com",
-                    "public_url": os.environ.get("R2_PUBLIC_URL", "")
+                    "use_vision_analysis": False,
+                    "chunking_strategy": "intelligent",
+                    "max_chunk_size": 600,
+                    "min_chunk_size": 200
                 },
                 "ollama": {
-                    "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-                }
+                    "base_url": "http://localhost:11434",
+                    "vision_model": "llava:7b",
+                    "text_model": "llama3.1:8b",
+                    "parallel_workers": 4,
+                    "batch_size": 100
+                },
+                "image_processing": {
+                    "keep_originals": True,
+                    "zero_conversion": True,
+                    "store_original_type": True,
+                    "validate_integrity": True
+                },
+                "memory": {
+                    "memory_dir": "MEMORY"
+                },
+                "documents_path": "./Documents"
             }
     
     def _init_supabase(self):
@@ -130,12 +144,12 @@ class AIPDFProcessor:
             Supabase-Client
         """
         try:
-            # Priorisiere Umgebungsvariablen, dann config.json
-            url = os.environ.get("SUPABASE_URL") or self.config.get("supabase", {}).get("url", "")
-            key = os.environ.get("SUPABASE_KEY") or self.config.get("supabase", {}).get("key", "")
+            # Ausschließlich Umgebungsvariablen für sensible Daten verwenden
+            url = os.environ.get("SUPABASE_URL", "")
+            key = os.environ.get("SUPABASE_KEY", "")
             
             if not url or not key:
-                logger.error("Supabase-URL oder -Key nicht konfiguriert in .env oder config.json")
+                logger.error("Supabase-URL oder -Key nicht in Umgebungsvariablen konfiguriert (.env)")
                 return None
                 
             client = create_client(url, key)
@@ -152,10 +166,9 @@ class AIPDFProcessor:
         Returns:
             Embedding-Client
         """
-        # Hier könnte eine eigene Embedding-Client-Implementierung stehen
-        # Für den Moment geben wir ein Mock-Objekt zurück
-        model = self.config.get("embedding", {}).get("model", "embeddinggemma")
-        dimensions = self.config.get("embedding", {}).get("dimensions", 768)
+        # Umgebungsvariablen für Modelleinstellungen mit Fallback auf Konfiguration
+        model = os.environ.get("EMBEDDING_MODEL") or self.config.get("embedding", {}).get("model", "embeddinggemma")
+        dimensions = int(os.environ.get("EMBEDDING_DIMENSIONS") or self.config.get("embedding", {}).get("dimensions", 768))
         
         logger.info(f"Embedding-Client initialisiert mit Modell {model}")
         
