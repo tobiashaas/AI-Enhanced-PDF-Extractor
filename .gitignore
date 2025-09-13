@@ -24,6 +24,9 @@ PIPFILE.lock
 
 # Config Files (Security)
 config.json
+.env
+.env.*
+!.env.example
 
 # Documents (Keep structure, exclude content)
 *.pdf

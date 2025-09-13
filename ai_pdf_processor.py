@@ -27,7 +27,11 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 import requests
+from dotenv import load_dotenv
 from supabase import create_client
+
+# Lade Umgebungsvariablen aus .env Datei
+load_dotenv()
 
 # Import der Module
 from modules.processing_pipeline.processor import ProcessingPipeline
@@ -90,20 +94,31 @@ class AIPDFProcessor:
                 return config
         except Exception as e:
             logger.error(f"Fehler beim Laden der Konfiguration: {e}")
-            # Standard-Konfiguration verwenden
+            # Standard-Konfiguration mit Umgebungsvariablen verwenden
             return {
                 "supabase": {
                     "url": os.environ.get("SUPABASE_URL", ""),
                     "key": os.environ.get("SUPABASE_KEY", "")
                 },
                 "embedding": {
-                    "model": "embeddinggemma",
+                    "model": os.environ.get("EMBEDDING_MODEL", "embeddinggemma"),
                     "dimensions": 768
                 },
                 "processing": {
                     "chunk_size": 500,
                     "chunk_overlap": 100,
                     "use_vision_analysis": False
+                },
+                "r2": {
+                    "account_id": os.environ.get("R2_ACCOUNT_ID", ""),
+                    "access_key_id": os.environ.get("R2_ACCESS_KEY_ID", ""),
+                    "secret_access_key": os.environ.get("R2_SECRET_ACCESS_KEY", ""),
+                    "bucket_name": os.environ.get("R2_BUCKET_NAME", ""),
+                    "endpoint": f"https://{os.environ.get('R2_ACCOUNT_ID', '')}.r2.cloudflarestorage.com",
+                    "public_url": os.environ.get("R2_PUBLIC_URL", "")
+                },
+                "ollama": {
+                    "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
                 }
             }
     
@@ -115,11 +130,12 @@ class AIPDFProcessor:
             Supabase-Client
         """
         try:
-            url = self.config.get("supabase", {}).get("url", os.environ.get("SUPABASE_URL", ""))
-            key = self.config.get("supabase", {}).get("key", os.environ.get("SUPABASE_KEY", ""))
+            # Priorisiere Umgebungsvariablen, dann config.json
+            url = os.environ.get("SUPABASE_URL") or self.config.get("supabase", {}).get("url", "")
+            key = os.environ.get("SUPABASE_KEY") or self.config.get("supabase", {}).get("key", "")
             
             if not url or not key:
-                logger.error("Supabase-URL oder -Key nicht konfiguriert")
+                logger.error("Supabase-URL oder -Key nicht konfiguriert in .env oder config.json")
                 return None
                 
             client = create_client(url, key)
