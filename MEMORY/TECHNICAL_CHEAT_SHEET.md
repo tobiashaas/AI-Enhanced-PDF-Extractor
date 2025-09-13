@@ -36,6 +36,15 @@ SELECT schemaname, tablename, rowsecurity
 FROM pg_tables 
 WHERE schemaname = 'public' 
   AND rowsecurity = true;
+
+-- Extension Setup für UUID
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
+
+-- Prüfen, wo Extensions installiert sind
+SELECT e.extname AS extension, n.nspname AS schema 
+FROM pg_extension e 
+JOIN pg_namespace n ON e.extnamespace = n.oid 
+WHERE e.extname IN ('uuid-ossp', 'vector');
 ```
 
 ## 📊 **10 MAIN TABLES CHECKLIST**
@@ -188,4 +197,34 @@ psql "postgresql://[supabase-connection-string]"
 # Clear Ollama Models (if needed)
 ollama rm embeddinggemma
 ollama pull embeddinggemma
+
+## 🪟 **WINDOWS-KOMPATIBILITÄT**
+```sql
+-- Windows: Überprüfen der Extension-Konfiguration
+-- Stellen Sie sicher, dass die uuid-ossp Extension im extensions-Schema installiert ist
+SELECT e.extname AS extension, n.nspname AS schema 
+FROM pg_extension e 
+JOIN pg_namespace n ON e.extnamespace = n.oid 
+WHERE e.extname = 'uuid-ossp';
+
+-- Falls nötig, verschieben/installieren Sie die Extension im extensions-Schema
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
+
+-- Beim Erstellen von Tabellen IMMER das Schema für uuid_generate_v4() angeben
+-- Beispiel:
+CREATE TABLE example_table (
+  id uuid PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+  name text,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+-- Um Windows-kompatibel zu bleiben, prüfen Sie die SQL-Befehle
+-- für alle Tabellen, ob extensions.uuid_generate_v4() verwendet wird:
+SELECT column_name, column_default
+FROM information_schema.columns
+WHERE table_schema = 'public' 
+AND column_default LIKE '%uuid_generate_v4%'
+AND column_default NOT LIKE '%extensions.uuid_generate_v4%';
+```
+```
 ```
